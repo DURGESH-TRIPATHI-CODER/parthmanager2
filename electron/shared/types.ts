@@ -23,6 +23,8 @@ export interface DiscoveryResult {
   monthFolder: string; // full path
   files: FileInfo[]; // matching files (may be empty)
   error?: string; // set when the month folder is missing/unreadable
+  /** True when no ParthSeva root folder is configured yet (first run). */
+  notConfigured?: boolean;
 }
 
 export interface Settings {
@@ -145,6 +147,17 @@ export interface DuplicateGroup {
 }
 
 /* ------------------------- Templates ------------------------- */
+
+/** A template-variable chip shown under the template editor.
+ * `count` is the number of contacts with data in that column; null = always
+ * available (e.g. {date}). */
+export interface TemplateVarChip {
+  /** Variable name without braces, e.g. "name". */
+  name: string;
+  /** Column label, e.g. "Full Name". */
+  label: string;
+  count: number | null;
+}
 
 export interface MessageTemplate {
   id: string;

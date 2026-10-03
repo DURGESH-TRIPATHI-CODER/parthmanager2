@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import type { DiscoveryResult, FileKind, FileInfo } from "../shared/types";
 import { filenameMatchesDay, monthFolderName, toLocalISODate } from "../shared/dateMatch";
@@ -23,15 +23,18 @@ function extensionKind(filename: string): FileKind {
  * Find candidate daily files for the given date inside the configured root.
  * Looks in the month folder for that date's month. Never throws: errors are
  * returned on the result so the UI can show them.
+ *
+ * Fully async so scanning a slow or large folder never blocks the Electron
+ * main process (dialogs, window, other IPC stay responsive).
  */
-export function findFilesForDate(rootFolder: string, date: Date): DiscoveryResult {
+export async function findFilesForDate(rootFolder: string, date: Date): Promise<DiscoveryResult> {
   const dateISO = toLocalISODate(date);
   const monthName = monthFolderName(date);
   const monthFolder = path.join(rootFolder, monthName);
 
   let entries: string[];
   try {
-    entries = fs.readdirSync(monthFolder, { withFileTypes: false }).map(String);
+    entries = await fs.readdir(monthFolder, { withFileTypes: false });
   } catch (err: unknown) {
     const code = (err as NodeJS.ErrnoException)?.code;
     if (code === "ENOENT") {
@@ -53,30 +56,36 @@ export function findFilesForDate(rootFolder: string, date: Date): DiscoveryResul
     };
   }
 
-  const files: FileInfo[] = [];
+  // Cheap name filter first (no syscalls), stat only the surviving matches.
+  const candidates: string[] = [];
   for (const entry of entries) {
     const filename = path.basename(entry);
     if (isTempFile(filename)) continue;
     if (!ACCEPTED_EXTENSIONS.has(path.extname(filename).toLowerCase())) continue;
-
-    let fullPath: string;
-    try {
-      fullPath = path.join(monthFolder, filename);
-      const stat = fs.statSync(fullPath);
-      if (!stat.isFile()) continue;
-      if (!filenameMatchesDay(filename, date)) continue;
-      files.push({
-        filename,
-        fullPath,
-        kind: extensionKind(filename),
-        matchedDate: dateISO,
-        sizeBytes: stat.size,
-      });
-    } catch {
-      // Unreadable entry — skip it rather than failing the whole scan.
-      continue;
-    }
+    if (!filenameMatchesDay(filename, date)) continue;
+    candidates.push(filename);
   }
+
+  const files: FileInfo[] = (
+    await Promise.all(
+      candidates.map(async (filename): Promise<FileInfo | null> => {
+        try {
+          const fullPath = path.join(monthFolder, filename);
+          const stat = await fs.stat(fullPath);
+          if (!stat.isFile()) return null;
+          return {
+            filename,
+            fullPath,
+            kind: extensionKind(filename),
+            matchedDate: dateISO,
+            sizeBytes: stat.size,
+          };
+        } catch {
+          return null; // unreadable entry — skip, never fail the whole scan
+        }
+      }),
+    )
+  ).filter((f): f is FileInfo => f !== null);
 
   // Deterministic order: alphabetical.
   files.sort((a, b) => a.filename.localeCompare(b.filename));

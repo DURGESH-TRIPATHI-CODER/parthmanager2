@@ -6,6 +6,7 @@ import type {
   FileInfo,
   MessageTemplate,
   SheetSummary,
+  TemplateVarChip,
   WorkbookInfo,
 } from "@shared/types";
 import { classifyRows } from "@shared/classify";
@@ -17,13 +18,15 @@ interface Props {
   discovery: DiscoveryResult | null;
   /** Hands the confirmed message roster to the app so the Queue screen can use it. */
   onQueueReady: (roster: Array<{ name: string; phone: string }>, sourceFile: string) => void;
+  /** Reports which template-variable columns actually contain data. */
+  onVarChipsChange?: (chips: TemplateVarChip[]) => void;
 }
 
 /**
  * Today's File screen: choose file (when several matched), choose worksheet,
  * confirm column mapping, review classified contacts. No sending here.
  */
-export function ImportScreen({ discovery, onQueueReady }: Props) {
+export function ImportScreen({ discovery, onQueueReady, onVarChipsChange }: Props) {
   const [file, setFile] = useState<FileInfo | null>(null);
   const [workbook, setWorkbook] = useState<WorkbookInfo | null>(null);
   const [sheet, setSheet] = useState<SheetSummary | null>(null);
@@ -57,6 +60,7 @@ export function ImportScreen({ discovery, onQueueReady }: Props) {
     setWorkbook(null);
     setSheet(null);
     setClassified(null);
+    onVarChipsChange?.([]);
     setErr(null);
     window.parthseva
       .readWorkbookInfo(file)
@@ -107,7 +111,39 @@ export function ImportScreen({ discovery, onQueueReady }: Props) {
 
   const doClassify = () => {
     if (!sheet) return;
-    setClassified(classifyRows(sheet.rows, mapping));
+    const result = classifyRows(sheet.rows, mapping);
+    setClassified(result);
+    onVarChipsChange?.(buildVarChips(result, mapping, sheet));
+  };
+
+  /** Only columns that are mapped AND carry data become chips. */
+  const buildVarChips = (
+    result: ClassificationResult,
+    m: ColumnMapping,
+    s: SheetSummary,
+  ): TemplateVarChip[] => {
+    const labelFor = (field: "name" | "phone" | "birthday") => {
+      const col = m[field];
+      return col !== undefined && col >= 0 ? s.headers[col] : field;
+    };
+    const count = (fn: (c: (typeof result.contacts)[number]) => boolean) =>
+      result.contacts.filter(fn).length;
+
+    const chips: TemplateVarChip[] = [];
+    const nameCount = count((c) => c.name.length > 0 && c.name !== "(no name)");
+    if (m.name !== undefined && m.name >= 0 && nameCount > 0) {
+      chips.push({ name: "name", label: labelFor("name"), count: nameCount });
+    }
+    const phoneCount = count((c) => c.phone.length > 0);
+    if (m.phone !== undefined && m.phone >= 0 && phoneCount > 0) {
+      chips.push({ name: "phone", label: labelFor("phone"), count: phoneCount });
+    }
+    const birthdayCount = count((c) => c.birthdayMD !== null);
+    if (m.birthday !== undefined && m.birthday >= 0 && birthdayCount > 0) {
+      chips.push({ name: "birthday", label: labelFor("birthday"), count: birthdayCount });
+    }
+    chips.push({ name: "date", label: "Today's date", count: null });
+    return chips;
   };
 
   const messages = classified?.contacts.filter((c) => c.action === "message") ?? [];

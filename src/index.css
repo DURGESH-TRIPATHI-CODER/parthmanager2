@@ -124,4 +124,20 @@ body {
 .progress-fill { height: 100%; background: var(--accent); transition: width .3s; }
 
 code { background: var(--hover); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+/* --- Variable chips under the template input --- */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; align-items: center; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 13px;
+}
+.chip:hover { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
+.chip-count {
+  min-width: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.chip-token { background: transparent; color: inherit; font-family: Consolas, monospace; font-size: 12px; opacity: .75; }
+.chip-note { font-size: 12px; color: var(--text-soft); }
 .setup-card { background: var(--surface); border: 1px solid var(--border); }

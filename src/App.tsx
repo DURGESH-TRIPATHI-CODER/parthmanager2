@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DiscoveryResult, Settings } from "@shared/types";
+import type { DiscoveryResult, Settings, TemplateVarChip } from "@shared/types";
 import { ThemeSwitch } from "@/components/arc/theme-switch/theme-switch";
 import type { Theme } from "@/components/arc/theme-switch/theme-switch";
 import { SetupScreen } from "./screens/SetupScreen";
@@ -16,6 +16,23 @@ export interface QueueHandoff {
   sourceFile: string;
 }
 
+/**
+ * One discovery scan at a time, shared by concurrent callers: React's
+ * StrictMode double-mount and the settings effect both join the same flight
+ * instead of triggering duplicate scans (keeps first dashboard paint fast).
+ */
+let discoveryFlight: Promise<DiscoveryResult | { error: string }> | null = null;
+function kickDiscovery(): Promise<DiscoveryResult | { error: string }> {
+  if (!discoveryFlight) {
+    discoveryFlight = window.parthseva
+      .discoverToday()
+      .finally(() => {
+        discoveryFlight = null;
+      });
+  }
+  return discoveryFlight;
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -23,6 +40,7 @@ export default function App() {
   const [discovery, setDiscovery] = useState<DiscoveryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueueHandoff | null>(null);
+  const [varChips, setVarChips] = useState<TemplateVarChip[]>([]);
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("ps-theme") as Theme) || "light",
   );
@@ -33,10 +51,12 @@ export default function App() {
   }, [theme]);
 
   const refreshDiscovery = useCallback(async () => {
-    const res = await window.parthseva.discoverToday();
+    const res = await kickDiscovery();
     if ("error" in res) {
       setError(res.error ?? "Discovery failed.");
       setDiscovery(null);
+    } else if (res.notConfigured) {
+      return res; // first run — no root folder yet, nothing to show or report
     } else {
       setError(null);
       setDiscovery(res);
@@ -45,6 +65,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Discovery starts immediately, in parallel with the settings read, so the
+    // dashboard's file-status card is populated on (or right after) first paint.
+    void refreshDiscovery();
     window.parthseva
       .getSettings()
       .then((r) => {
@@ -55,11 +78,13 @@ export default function App() {
         setError(String(e));
         setLoaded(true);
       });
-  }, []);
+  }, [refreshDiscovery]);
 
   useEffect(() => {
-    if (loaded && settings?.rootFolder) void refreshDiscovery();
-  }, [loaded, settings?.rootFolder, refreshDiscovery]);
+    // Re-scan whenever the configured root folder changes (initial load joins
+    // the flight started above via kickDiscovery's dedupe).
+    if (settings?.rootFolder) void refreshDiscovery();
+  }, [settings?.rootFolder, refreshDiscovery]);
 
   if (!loaded) return <div className="center-note">Loading…</div>;
   if (!settings) return <div className="center-note">Could not load settings.</div>;
@@ -120,9 +145,10 @@ export default function App() {
               setQueue({ roster, sourceFile });
               setScreen("queue");
             }}
+            onVarChipsChange={setVarChips}
           />
         )}
-        {screen === "templates" && <TemplatesScreen />}
+        {screen === "templates" && <TemplatesScreen chips={varChips} />}
         {screen === "queue" && (
           <QueueScreen roster={queue?.roster} sourceFile={queue?.sourceFile} />
         )}

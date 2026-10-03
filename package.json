@@ -44,6 +44,7 @@
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",

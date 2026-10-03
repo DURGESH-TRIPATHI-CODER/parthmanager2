@@ -8,9 +8,49 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     />
     <title>ParthSeva Manager</title>
+    <link rel="icon" href="./favicon.ico" />
+    <style>
+      /* Painted before any JS loads — the window is never a white pane. */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #f6f7f9;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      #boot-splash {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        color: #667085;
+        font-size: 14px;
+      }
+      #boot-splash .spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 3px solid #dce1ea;
+        border-top-color: #1d4ed8;
+        animation: boot-spin 0.9s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static splash: visible instantly, replaced when React mounts. -->
+      <div id="boot-splash">
+        <div class="spinner"></div>
+        <div>Starting ParthSeva Manager…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

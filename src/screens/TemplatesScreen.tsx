@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
-import type { MessageTemplate } from "@shared/types";
+import { useEffect, useRef, useState } from "react";
+import type { MessageTemplate, TemplateVarChip } from "@shared/types";
 import { ActionButton } from "@/components/arc/action-button/action-button";
 import { ConfirmMorph } from "@/components/arc/confirm-morph/confirm-morph";
 
-export function TemplatesScreen() {
+/** Chips shown when no spreadsheet has been classified yet. */
+const BASE_CHIPS: TemplateVarChip[] = [
+  { name: "name", label: "Name", count: null },
+  { name: "phone", label: "Phone", count: null },
+  { name: "date", label: "Today's date", count: null },
+];
+
+export function TemplatesScreen({ chips }: { chips?: TemplateVarChip[] }) {
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [editing, setEditing] = useState<MessageTemplate | null>(null);
   const [name, setName] = useState("");
@@ -53,6 +61,27 @@ export function TemplatesScreen() {
     if (editing?.id === id) startNew();
   };
 
+  /** Insert {variable} at the caret (or append) when a chip is clicked. */
+  const insertVar = (name: string) => {
+    const token = `{${name}}`;
+    const el = bodyRef.current;
+    if (!el) {
+      setBody((b) => b + token);
+      return;
+    }
+    const start = el.selectionStart ?? body.length;
+    const end = el.selectionEnd ?? body.length;
+    const next = body.slice(0, start) + token + body.slice(end);
+    setBody(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const activeChips = chips && chips.length > 0 ? chips : BASE_CHIPS;
+
   return (
     <section>
       <h2>Message Templates</h2>
@@ -66,15 +95,38 @@ export function TemplatesScreen() {
             onChange={(e) => setName(e.target.value)}
           />
           <textarea
+            ref={bodyRef}
             className="input template-body"
             rows={6}
             placeholder={"Happy Birthday {name}! 🎂\n\nWishing you a wonderful day ahead."}
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
+          <div className="chip-row" aria-label="Insert variable">
+            {activeChips.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                className="chip"
+                title={
+                  c.count === null
+                    ? `Insert {${c.name}}`
+                    : `${c.count} contact${c.count === 1 ? "" : "s"} have data in this column — click to insert {${c.name}}`
+                }
+                onClick={() => insertVar(c.name)}
+              >
+                {c.label}
+                {c.count !== null && <span className="chip-count">{c.count}</span>}
+                <code className="chip-token">{`{${c.name}}`}</code>
+              </button>
+            ))}
+            {chips && chips.length > 0 && (
+              <span className="chip-note">columns with data — click to insert</span>
+            )}
+          </div>
           <div className="hint">
-            Variables: <code>{"{name}"}</code> <code>{"{phone}"}</code> <code>{"{birthday}"}</code> <code>{"{date}"}</code>
-            {" "}— replaced per contact. Unknown variables are highlighted, never silently removed.
+            Replaced per contact. Unknown variables are highlighted in the preview,
+            never silently removed.
           </div>
           <div className="btn-row">
             <ActionButton

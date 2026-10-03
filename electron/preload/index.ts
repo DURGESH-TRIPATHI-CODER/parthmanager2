@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC } from "../shared/types";
 import type {
   DiscoveryResult,
   FileInfo,
@@ -23,7 +22,28 @@ import type {
  * The renderer gets ONLY the small, typed functions below — no Node.js, no
  * unrestricted fs, no raw ipcRenderer. Every call goes to a fixed channel
  * with validated handlers on the main side.
+ *
+ * IMPORTANT: sandboxed preloads cannot require app-relative modules, so the
+ * channel map lives here. Keep in sync with IPC in ../shared/types.ts (the
+ * type-only import below is erased at compile time and does not load at
+ * runtime).
  */
+
+const IPC = {
+  getSettings: "settings:get",
+  setRootFolder: "settings:setRootFolder",
+  pickFolder: "dialog:pickFolder",
+  discoverToday: "files:discoverToday",
+  readWorkbook: "files:readWorkbook",
+  lookupMapping: "mapping:lookup",
+  saveMapping: "mapping:save",
+  listTemplates: "templates:list",
+  saveTemplate: "templates:save",
+  deleteTemplate: "templates:delete",
+  handoffQueue: "queue:handoff",
+  updateQueueStatus: "queue:updateStatus",
+  loadLastQueue: "queue:loadLast",
+} as const satisfies (typeof import("../shared/types"))["IPC"];
 
 const api = {
   getSettings: (): Promise<{ settings: Settings }> =>

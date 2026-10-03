@@ -107,10 +107,21 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return result.filePaths[0];
   });
 
-  ipcMain.handle(IPC.discoverToday, (): DiscoveryResult | { error: string } => {
+  ipcMain.handle(IPC.discoverToday, async (): Promise<DiscoveryResult | { error: string }> => {
     try {
-      const root = requireRoot(deps.settings);
-      return findFilesForDate(root, new Date());
+      const root = deps.settings.settings.rootFolder;
+      if (!root) {
+        // First run: no error, just an empty result — nothing blocks.
+        const today = new Date();
+        return {
+          dateISO: today.toISOString().slice(0, 10),
+          monthName: "",
+          monthFolder: "",
+          files: [],
+          notConfigured: true,
+        };
+      }
+      return await findFilesForDate(root, new Date());
     } catch (err) {
       return { error: errMessage(err) };
     }
