@@ -230,6 +230,13 @@ export const IPC = {
   handoffQueue: "queue:handoff",
   updateQueueStatus: "queue:updateStatus",
   loadLastQueue: "queue:loadLast",
+  senderGetState: "sender:getState",
+  senderPair: "sender:pair",
+  senderCancelPair: "sender:cancelPair",
+  senderDisconnect: "sender:disconnect",
+  senderPing: "sender:ping",
+  senderStart: "sender:start",
+  senderStop: "sender:stop",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

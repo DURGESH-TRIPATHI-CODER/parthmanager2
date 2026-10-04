@@ -8,8 +8,10 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplatesScreen } from "./screens/TemplatesScreen";
 import { QueueScreen } from "./screens/QueueScreen";
 import { ImportScreen } from "./screens/ImportScreen";
+import { ParthSenderPanel } from "./components/ParthSenderPanel";
+import { SevaNoticeScreen } from "./screens/SevaNoticeScreen";
 
-export type Screen = "dashboard" | "import" | "templates" | "queue" | "settings";
+export type Screen = "dashboard" | "import" | "templates" | "queue" | "seva-notice" | "settings";
 
 export interface QueueHandoff {
   roster: Array<{ name: string; phone: string }>;
@@ -35,6 +37,8 @@ function kickDiscovery(): Promise<DiscoveryResult | { error: string }> {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("dashboard");
+  const birthdayFlowActive = screen === "import" || screen === "templates" || screen === "queue";
+  const [birthdayMenuOpen, setBirthdayMenuOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [discovery, setDiscovery] = useState<DiscoveryResult | null>(null);
@@ -44,11 +48,13 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("ps-theme") as Theme) || "light",
   );
-
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("ps-theme", theme);
   }, [theme]);
+  useEffect(() => {
+    if (birthdayFlowActive) setBirthdayMenuOpen(true);
+  }, [birthdayFlowActive]);
 
   const refreshDiscovery = useCallback(async () => {
     const res = await kickDiscovery();
@@ -108,23 +114,19 @@ export default function App() {
     <div className="shell">
       <nav className="sidebar">
         <div className="brand">ParthSeva Manager</div>
+        <ParthSenderPanel />
         <ThemeSwitch theme={theme} iconOnly onThemeChange={(next) => setTheme(next)} />
-        {(
-          [
-            ["dashboard", "Dashboard"],
-            ["import", "Today's File"],
-            ["templates", "Templates"],
-            ["queue", "Send Queue"],
-            ["settings", "Settings"],
-          ] as Array<[Screen, string]>
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            className={"nav-btn" + (screen === id ? " active" : "")}
-            onClick={() => setScreen(id)}
-          >
-            {label}
-          </button>
+        <button className={"nav-btn" + (screen === "dashboard" ? " active" : "")} onClick={() => setScreen("dashboard")}>Dashboard</button>
+        <details className="nav-group" open={birthdayMenuOpen} onToggle={(event) => setBirthdayMenuOpen(event.currentTarget.open)}>
+          <summary className={"nav-btn nav-group-summary" + (birthdayFlowActive ? " active" : "")}>Birthday Sending</summary>
+          <div className="nav-subitems">
+            {([["import", "Today's File"], ["templates", "Templates"], ["queue", "Send Queue"]] as Array<[Screen, string]>).map(([id, label]) => (
+              <button key={id} className={"nav-btn nav-subitem" + (screen === id ? " active" : "")} onClick={() => setScreen(id)}>{label}</button>
+            ))}
+          </div>
+        </details>
+        {([ ["seva-notice", "Seva Notice"], ["settings", "Settings"] ] as Array<[Screen, string]>).map(([id, label]) => (
+          <button key={id} className={"nav-btn" + (screen === id ? " active" : "")} onClick={() => setScreen(id)}>{label}</button>
         ))}
       </nav>
       <main className="content">
@@ -152,6 +154,7 @@ export default function App() {
         {screen === "queue" && (
           <QueueScreen roster={queue?.roster} sourceFile={queue?.sourceFile} />
         )}
+        {screen === "seva-notice" && <SevaNoticeScreen />}
         {screen === "settings" && (
           <SettingsScreen
             settings={settings}

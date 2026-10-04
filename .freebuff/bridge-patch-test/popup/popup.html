@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Bulk Sender from Excel</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.472 14.382C17.015 14.156 14.764 13.047 14.345 12.895C13.925 12.743 13.621 12.667 13.317 13.123C13.013 13.579 12.15 14.593 11.884 14.897C11.618 15.201 11.352 15.239 10.895 15.013C10.438 14.787 8.97 14.307 7.227 12.753C5.869 11.543 4.952 10.05 4.686 9.594C4.42 9.138 4.658 8.891 4.887 8.663C5.093 8.458 5.345 8.125 5.573 7.859C5.801 7.593 5.877 7.403 6.029 7.099C6.181 6.795 6.105 6.529 5.991 6.301C5.877 6.073 4.963 3.829 4.583 2.917C4.213 2.029 3.839 2.148 3.559 2.134C3.293 2.12 2.989 2.12 2.685 2.12C2.381 2.12 1.887 2.234 1.468 2.69C1.049 3.146 -0.13 4.248 -0.13 6.489C-0.13 8.73 1.506 10.897 1.734 11.201C1.962 11.505 4.963 16.104 9.566 18.092C10.66 18.565 11.517 18.849 12.185 19.061C13.282 19.41 14.281 19.359 15.074 19.241C15.958 19.109 17.797 18.129 18.177 17.065C18.557 16.001 18.557 15.088 18.443 14.897C18.329 14.707 18.025 14.593 17.568 14.367" fill="#25D366"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>WhatsApp Sender Pro</h1>
+          <span class="version-badge">v1.0 • Excel Import</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="wa-status-dot"></span>
+        <span class="status-label" id="wa-status-text">Checking Web WhatsApp...</span>
+      </div>
+    </header>
+
+    <section class="manager-connection" aria-label="ParthSeva Manager connection">
+      <div class="manager-summary">
+        <div><strong>ParthSeva Manager</strong><div class="manager-state"><span class="manager-dot" id="manager-status-dot"></span><span id="manager-status-text">Not Connected</span></div></div>
+        <button class="btn btn-sm btn-outline" id="manager-connect-toggle">Connect</button>
+      </div>
+      <form class="manager-pair-form hidden" id="manager-pair-form">
+        <label for="manager-pairing-code">Enter pairing code</label>
+        <div class="manager-pair-row"><input id="manager-pairing-code" class="form-control" placeholder="XXXX-XXXX" maxlength="9" autocomplete="off"><button type="submit" class="btn btn-sm btn-success">Connect</button></div>
+        <span class="manager-error" id="manager-connection-error" role="status"></span>
+      </form>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-import">
+        <span class="tab-icon">📁</span>
+        <span class="tab-title">1. Import Contacts</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-composer">
+        <span class="tab-icon">✍️</span>
+        <span class="tab-title">2. Message Composer</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-queue">
+        <span class="tab-icon">🚀</span>
+        <span class="tab-title">3. Campaign & Queue</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-log">
+        <span class="tab-icon">📋</span>
+        <span class="tab-title">4. Activity Log</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Panels -->
+    <main class="content-panels">
+      <!-- TAB 1: IMPORT CONTACTS -->
+      <section id="tab-import" class="tab-panel active">
+        <div class="card">
+          <div class="card-header">
+            <h2>Excel File Import</h2>
+            <p class="subtitle">Upload your .xlsx, .xls, or .csv file. Phone number column is required; Name and other columns are optional.</p>
+          </div>
+
+          <!-- File Drop Area -->
+          <div class="drop-zone" id="drop-zone">
+            <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" hidden>
+            <div class="drop-zone-content">
+              <div class="drop-icon">📊</div>
+              <h3>Drag & Drop Excel file here</h3>
+              <p>or <button class="btn btn-secondary btn-sm" id="btn-browse-file">Browse File</button></p>
+              <div class="file-info hidden" id="file-info">
+                <span class="file-name" id="file-name">filename.xlsx</span>
+                <span class="file-size" id="file-size">0 KB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mapping & Configuration Grid -->
+          <div class="config-grid">
+            <div class="form-group">
+              <label for="select-phone-col">Phone Number Column <span class="required">*</span></label>
+              <select id="select-phone-col" class="form-control" disabled>
+                <option value="">-- Upload Excel file first --</option>
+              </select>
+              <span class="help-text">Auto-detected header mapped to phone numbers</span>
+            </div>
+
+            <div class="form-group">
+              <label for="input-default-cc">Default Country Code (Optional)</label>
+              <input type="text" id="input-default-cc" class="form-control" placeholder="e.g. 91" value="">
+              <span class="help-text">Prepended if phone is 10 digits without country code</span>
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label class="toggle-switch">
+                <input type="checkbox" id="check-skip-duplicates" checked>
+                <span class="slider"></span>
+              </label>
+              <div class="toggle-label">
+                <strong>Skip Duplicate Phone Numbers</strong>
+                <p>Turn OFF to allow sending repeated messages to the same numbers anytime</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contacts Table Preview -->
+        <div class="card margin-top">
+          <div class="card-header flex-between">
+            <div>
+              <h2>Contacts Preview</h2>
+              <p class="subtitle" id="contacts-summary-text">No contacts imported yet.</p>
+            </div>
+            <div class="table-actions">
+              <button class="btn btn-sm btn-outline" id="btn-select-all">Select All</button>
+              <button class="btn btn-sm btn-outline" id="btn-deselect-all">Deselect All</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="contacts-table">
+              <thead>
+                <tr>
+                  <th width="40"><input type="checkbox" id="check-all-table" checked></th>
+                  <th width="50">#</th>
+                  <th>Phone</th>
+                  <th>Name / Data Summary</th>
+                  <th>Validation Status</th>
+                </tr>
+              </thead>
+              <tbody id="contacts-tbody">
+                <tr>
+                  <td colspan="5" class="empty-state">
+                    Please upload an Excel spreadsheet above to preview contacts.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: MESSAGE COMPOSER -->
+      <section id="tab-composer" class="tab-panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>Message Template</h2>
+            <p class="subtitle">Write your message below. Click on any variable badge to insert personalization tags.</p>
+          </div>
+
+          <!-- Variable Validation Banner -->
+          <div class="alert alert-danger hidden" id="var-validation-alert">
+            <span class="alert-icon">⚠️</span>
+            <div class="alert-body">
+              <strong>Variable Validation Error:</strong>
+              <span id="var-error-msg">The message contains invalid variables that do not exist in Excel.</span>
+            </div>
+          </div>
+
+          <!-- Message Textarea Box -->
+          <div class="form-group">
+            <textarea id="message-template" class="form-control message-editor" placeholder="Write your message here... Example:
+Hello {{Name}},
+Your order {{OrderID}} has been confirmed.
+Thank you!"></textarea>
+          </div>
+
+          <!-- Variable Picker Chips -->
+          <div class="variable-picker-container">
+            <label class="picker-label">Available Variables (Click to insert):</label>
+            <div class="variable-chips" id="variable-chips-list">
+              <span class="chip-placeholder">Upload Excel file to view available column variables</span>
+            </div>
+          </div>
+
+          <!-- Image Selector Component -->
+          <div class="card-sub section-margin">
+            <h3>Image Attachment (Optional)</h3>
+            <div class="image-mode-options">
+              <label class="radio-label">
+                <input type="radio" name="image-mode" value="none" checked>
+                <span>Text Only (No Image)</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="image-mode" value="common">
+                <span>Common Image for All</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="image-mode" value="excel">
+                <span>Excel Column Image URL</span>
+              </label>
+            </div>
+
+            <!-- Common Image Upload -->
+            <div class="image-upload-box hidden" id="box-common-image">
+              <input type="file" id="common-image-input" accept="image/*">
+              <div class="image-preview-container hidden" id="common-image-preview-box">
+                <img id="common-image-preview" src="" alt="Selected Image">
+                <button class="btn-remove-image" id="btn-remove-common-image">✕ Remove</button>
+              </div>
+            </div>
+
+            <!-- Excel Image Column Selector -->
+            <div class="form-group hidden" id="box-excel-image">
+              <label for="select-image-col">Select Image URL/Path Column</label>
+              <select id="select-image-col" class="form-control">
+                <option value="">-- Select Column --</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live Preview Box -->
+          <div class="card-sub section-margin preview-card">
+            <div class="flex-between margin-bottom-sm">
+              <h3>Live Message Preview</h3>
+              <div class="preview-recipient-selector">
+                <label for="preview-contact-select">Preview Contact:</label>
+                <select id="preview-contact-select" class="form-control form-control-sm">
+                  <option value="0">Default Preview</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="whatsapp-bubble">
+              <div class="bubble-image hidden" id="preview-bubble-image-container">
+                <img id="preview-bubble-image" src="" alt="Attachment Preview">
+              </div>
+              <div class="bubble-text" id="preview-bubble-text">
+                Your message preview will appear here...
+              </div>
+              <div class="bubble-time">12:00 PM <span class="ticks">✓✓</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: CAMPAIGN & QUEUE -->
+      <section id="tab-queue" class="tab-panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>Campaign Controls & Pacing</h2>
+            <p class="subtitle">Review campaign settings and authorize recipients before launching sending engine.</p>
+          </div>
+
+          <!-- Mandatory Consent Checkbox -->
+          <div class="consent-box">
+            <label class="checkbox-container">
+              <input type="checkbox" id="check-consent">
+              <span class="checkmark"></span>
+              <span class="consent-text">
+                <strong>Authorization & Consent Confirmation <span class="required">*</span></strong><br>
+                I confirm that these recipients are authorized / consented recipients for this communication, and agree to follow WhatsApp Terms of Service.
+              </span>
+            </label>
+          </div>
+
+          <!-- Pacing Delay Selector -->
+          <div class="pacing-config">
+            <div class="form-group">
+              <label for="pacing-delay-slider">Pacing Delay between operations (Seconds): <strong id="pacing-val">10s</strong></label>
+              <input type="range" id="pacing-delay-slider" min="3" max="60" value="10" class="slider-input">
+              <span class="help-text">Conservative delay between messages helps maintain smooth browser operation.</span>
+            </div>
+          </div>
+
+          <!-- Safety & Architectural Disclaimer Notice -->
+          <div class="alert alert-info">
+            <span class="alert-icon">ℹ️</span>
+            <div class="alert-body">
+              <strong>Notice:</strong> Pacing does not guarantee that an account will not be restricted by WhatsApp. For legitimate high-volume operations, consider using the official <strong>WhatsApp Business Platform / Cloud API</strong>.
+            </div>
+          </div>
+
+          <!-- Queue Control Action Buttons -->
+          <div class="campaign-actions">
+            <button class="btn btn-success btn-lg" id="btn-start-queue">
+              <span>▶</span> Start Campaign
+            </button>
+            <button class="btn btn-warning btn-lg hidden" id="btn-pause-queue">
+              <span>⏸</span> Pause
+            </button>
+            <button class="btn btn-primary btn-lg hidden" id="btn-resume-queue">
+              <span>▶</span> Resume
+            </button>
+            <button class="btn btn-danger btn-lg" id="btn-stop-queue" disabled>
+              <span>⏹</span> Stop
+            </button>
+          </div>
+        </div>
+
+        <!-- Metrics Cards & Progress Bar -->
+        <div class="card margin-top">
+          <div class="card-header flex-between">
+            <h2>Live Queue Metrics</h2>
+            <button class="btn btn-sm btn-outline" id="btn-reset-campaign">🔄 Reset Queue & History</button>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">Total</div>
+              <div class="metric-value" id="metric-total">0</div>
+            </div>
+            <div class="metric-card metric-sent">
+              <div class="metric-label">Sent</div>
+              <div class="metric-value" id="metric-sent">0</div>
+            </div>
+            <div class="metric-card metric-failed">
+              <div class="metric-label">Failed</div>
+              <div class="metric-value" id="metric-failed">0</div>
+            </div>
+            <div class="metric-card metric-remaining">
+              <div class="metric-label">Remaining</div>
+              <div class="metric-value" id="metric-remaining">0</div>
+            </div>
+          </div>
+
+          <!-- Current Recipient Card -->
+          <div class="current-recipient-box">
+            <div class="current-label">Current Recipient:</div>
+            <div class="current-name" id="current-recipient-text">None (Idle)</div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="progress-container">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-text" id="progress-percentage">0% Completed</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: ACTIVITY LOG -->
+      <section id="tab-log" class="tab-panel">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>Activity Log & Send History</h2>
+              <p class="subtitle">Complete audit trail of all message operations.</p>
+            </div>
+            <button class="btn btn-sm btn-outline" id="btn-clear-logs">Clear Logs</button>
+          </div>
+
+          <!-- Log Filter Bar -->
+          <div class="filter-bar">
+            <button class="filter-chip active" data-filter="all">All Items</button>
+            <button class="filter-chip" data-filter="Sent">Sent</button>
+            <button class="filter-chip" data-filter="Failed">Failed</button>
+            <button class="filter-chip" data-filter="Skipped">Skipped</button>
+            <button class="filter-chip" data-filter="Pending">Pending</button>
+          </div>
+
+          <!-- Log Table -->
+          <div class="table-container">
+            <table class="data-table" id="log-table">
+              <thead>
+                <tr>
+                  <th width="40">#</th>
+                  <th width="130">Phone</th>
+                  <th>Status</th>
+                  <th>Error / Details</th>
+                  <th width="120">Time</th>
+                </tr>
+              </thead>
+              <tbody id="log-tbody">
+                <tr>
+                  <td colspan="5" class="empty-state">No log entries recorded yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>WhatsApp Excel Bulk Sender • Local & Secure Browser Engine</span>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="../lib/xlsx.full.min.js"></script>
+  <script src="../lib/storage.js"></script>
+  <script src="../lib/validator.js"></script>
+  <script src="../lib/variable-engine.js"></script>
+  <script src="../lib/excel-parser.js"></script>
+  <script src="../lib/queue.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

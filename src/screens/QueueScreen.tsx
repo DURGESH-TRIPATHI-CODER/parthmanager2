@@ -36,6 +36,7 @@ export function QueueScreen({
   const [progress, setProgress] = useState({ sent: 0, failed: 0, skipped: 0 });
   const [handoffMsg, setHandoffMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     window.parthseva
@@ -77,30 +78,41 @@ export function QueueScreen({
 
   const confirmSend = async () => {
     if (!activeTemplate || items.length === 0) return;
+    if (!(await window.parthseva.senderPing())) { setErr("ParthSender is not connected. Start Chrome with ParthSender and test the connection."); return; }
+    if (items.some((it) => it.status !== "pending") || duplicates.length > 0) { setErr("Resolve duplicate recipients and prepare a fresh queue before sending."); return; }
     setPhase("sending");
     try {
-      const res = await window.parthseva.handoffQueue({
-        sessionId: `q${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        sourceFile: sourceFile ?? "manual queue",
-        templateName: activeTemplate.name,
-        items,
-      });
-      setHandoffMsg(res.result.message);
-      if (!res.result.accepted) {
-        setErr(res.result.message);
-        setPhase("confirm");
-        return;
-      }
-      // The extension reports per-item status through the bridge; until that
-      // feed is live we reflect the accepted hand-off as the batch progress.
-      setProgress({ sent: items.length, failed: 0, skipped: 0 });
-      setPhase("done");
+      const id = await window.parthseva.senderStart(items);
+      setRequestId(id);
+      setHandoffMsg(`Queue sent to ParthSender (${items.length} messages).`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setPhase("confirm");
     }
   };
+
+  useEffect(() => window.parthseva.onSenderEvent((value) => {
+    if (!value || typeof value !== "object") return;
+    if (value.type === "state") {
+      const state = value.payload as { connected?: boolean };
+      if (!state.connected && phase === "sending") { setErr("Connection lost during sending. Remaining messages are unconfirmed; the extension must stop starting new messages."); setPhase("done"); }
+      return;
+    }
+    const payload = value.payload;
+    if (!payload || typeof payload !== "object") return;
+    const wireType = value.type === "status" ? "STATUS" : value.type === "error" ? "ERROR" : value.type;
+    const e = { ...(payload as Record<string, unknown>), type: wireType } as { type?: string; requestId?: string; messageId?: string; status?: string; message?: string };
+    if (requestId && e.requestId !== requestId) return;
+    if (e.type === "ERROR") { setErr(e.message ?? "ParthSender reported an error."); setPhase("done"); return; }
+    if (e.type !== "STATUS") return;
+    if (e.status === "completed" || e.status === "stopped") { setPhase("done"); return; }
+    if (!e.messageId || !["sent", "failed", "skipped", "sending", "pending"].includes(e.status ?? "")) return;
+    setItems((prev) => {
+      const updated = prev.map((item) => item.id === e.messageId ? { ...item, status: e.status as QueueItem["status"] } : item);
+      setProgress({ sent: updated.filter((item) => item.status === "sent").length, failed: updated.filter((item) => item.status === "failed").length, skipped: updated.filter((item) => item.status === "skipped").length });
+      return updated;
+    });
+  }), [requestId, phase]);
 
   const total = items.length;
   const processed = progress.sent + progress.failed + progress.skipped;
@@ -151,6 +163,7 @@ export function QueueScreen({
 
       {phase === "confirm" && (
         <div className="card wide">
+          <div className="hint">Source file: {sourceFile ?? "manual queue"}</div>
           <div className="card-label">
             Messages Ready — {items.length} message{items.length === 1 ? "" : "s"}
           </div>
@@ -195,6 +208,7 @@ export function QueueScreen({
       {phase === "sending" && (
         <div className="card wide">
           <div className="card-label">Sending Messages</div>
+          <button className="btn" onClick={() => requestId && void window.parthseva.senderStop(requestId)}>STOP</button>
           <div className="progress-bar">
             <div
               className="progress-fill"

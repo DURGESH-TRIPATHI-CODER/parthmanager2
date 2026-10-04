@@ -12,6 +12,7 @@ import type {
 import { classifyRows } from "@shared/classify";
 import { suggestMapping } from "@shared/headers";
 import { phoneKey } from "@shared/phone";
+import { isValidPhone } from "@shared/phone";
 import { ActionButton } from "@/components/arc/action-button/action-button";
 
 interface Props {
@@ -146,7 +147,7 @@ export function ImportScreen({ discovery, onQueueReady, onVarChipsChange }: Prop
     return chips;
   };
 
-  const messages = classified?.contacts.filter((c) => c.action === "message") ?? [];
+    const messages = classified?.contacts.filter((c) => c.action === "message" && !!c.name.trim() && isValidPhone(c.phone)) ?? [];
   const calls = classified?.contacts.filter((c) => c.action === "call") ?? [];
   const review = classified?.contacts.filter((c) => c.action === "review") ?? [];
 

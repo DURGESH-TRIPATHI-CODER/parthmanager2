@@ -45,6 +45,13 @@ body {
 }
 .nav-btn:hover { background: var(--hover); }
 .nav-btn.active { background: var(--nav-active-bg); color: var(--accent); font-weight: 600; }
+.nav-group { margin: 0; }
+.nav-group-summary { display: block; list-style: none; }
+.nav-group-summary::-webkit-details-marker { display: none; }
+.nav-group-summary::after { content: "▸"; float: right; color: var(--text-soft); }
+.nav-group[open] > .nav-group-summary::after { content: "▾"; }
+.nav-subitems { display: flex; flex-direction: column; gap: 2px; padding: 3px 0 3px 12px; }
+.nav-subitem { width: 100%; font-size: 13px; }
 .content { flex: 1; padding: 26px 32px; max-width: 980px; }
 
 /* ---- Cards ---- */

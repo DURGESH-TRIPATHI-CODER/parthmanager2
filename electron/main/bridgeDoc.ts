@@ -8,7 +8,7 @@ import fs from "node:fs";
  * the extension author (or the user) always has the exact hand-off format
  * available on the machine that needs it.
  */
-export const EXTENSION_BRIDGE_DOC = `# ParthSeva Manager - Extension Queue Hand-off
+export const EXTENSION_BRIDGE_DOC = `# ParthSeva Manager - ParthSender integration
 
 ParthSeva Manager prepares and manages the message queue. It does NOT send
 messages. Your existing Chrome extension stays responsible for opening the
@@ -38,24 +38,19 @@ with this shape:
   ]
 }
 
-## How the extension can consume the queue
+## WebSocket pairing status
 
-Option A - Poll the queue folder
-  Watch <userData>/queue-sessions/ for new files with status "pending" items.
-
-Option B - Localhost API (if your extension already exposes one)
-  The app probes 127.0.0.1 on ports 57321-57323 for GET /ping before writing.
-  If your extension answers /ping, the app POSTs the JSON above to /queue.
-
-Option C - Native messaging
-  If a native messaging host manifest is registered, the app reports it and
-  the host can read the same queue files.
+The app implements protocol v1 over a loopback-only WebSocket server. Pair once
+from the ParthSender extension, then it reconnects with a protected device
+credential. The first Chrome extension origin that presents the one-time code
+is bound to the installation for later authentication. See
+PARTHSENDER_WEBSOCKET_PROTOCOL.md for the extension adapter contract.
 
 ## Security rules
 
 - Local only: no data ever leaves this machine.
 - The queue contains only: id, name, phone, message, status.
-- The app never auto-sends; the user confirms every batch explicitly.
+- The app never auto-sends; the user reviews the queue and explicitly confirms.
 `;
 
 export function writeBridgeDoc(userDataDir: string): void {

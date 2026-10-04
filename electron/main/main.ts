@@ -8,6 +8,7 @@ import type { QueueSessionStore } from "./handoff";
 import { QueueSessionStore as QueueSessionStoreImpl } from "./handoff";
 import { registerIpcHandlers, type IpcDeps } from "./ipc";
 import { writeBridgeDoc } from "./bridgeDoc";
+import { PairingServer } from "../localConnection/server";
 
 /**
  * Electron main process entry.
@@ -33,6 +34,7 @@ let settings: SettingsStore;
 let mappings: JsonStore<Record<string, SavedMappingEntry>>;
 let templates: JsonStore<SavedTemplate[]>;
 let sessions: QueueSessionStore;
+let sender: PairingServer;
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 
@@ -126,9 +128,11 @@ app.whenReady().then(() => {
   mappings = new JsonStoreImpl<Record<string, SavedMappingEntry>>(userDataDir, "column-mappings.json");
   templates = new JsonStoreImpl<SavedTemplate[]>(userDataDir, "templates.json");
   sessions = new QueueSessionStoreImpl(userDataDir);
+  sender = new PairingServer(userDataDir, (type, payload) => mainWindow?.webContents.send("sender:event", { type, payload }));
+  void sender.start();
 
   writeBridgeDoc(userDataDir);
-  registerIpcHandlers({ settings, mappings, templates, sessions } as IpcDeps);
+  registerIpcHandlers({ settings, mappings, templates, sessions, sender } as IpcDeps);
 
   if (process.env.PARTHSEVA_SMOKE === "1") {
     // Smoke test: boot a hidden window, load the real renderer, and verify the
@@ -214,5 +218,6 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  void sender?.close();
   if (process.platform !== "darwin") app.quit();
 });

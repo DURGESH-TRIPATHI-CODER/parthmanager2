@@ -26,6 +26,7 @@ import {
 } from "./excel";
 import { findFilesForDate } from "./fileFinder";
 import { handoffQueue } from "./handoff";
+import type { PairingServer } from "../localConnection/server";
 
 /**
  * All IPC handlers. Every handler validates its inputs and returns plain
@@ -52,6 +53,7 @@ export interface IpcDeps {
   mappings: JsonStore<Record<string, SavedMappingEntry>>;
   templates: JsonStore<SavedTemplate[]>;
   sessions: QueueSessionStore;
+  sender: PairingServer;
 }
 
 function errMessage(err: unknown): string {
@@ -66,6 +68,21 @@ function requireRoot(settings: SettingsStore): string {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
+  ipcMain.handle(IPC.senderGetState, () => deps.sender.getState());
+  ipcMain.handle(IPC.senderPair, () => deps.sender.beginPairing());
+  ipcMain.handle(IPC.senderCancelPair, () => { deps.sender.cancelPairing(); return true; });
+  ipcMain.handle(IPC.senderDisconnect, () => { deps.sender.disconnect(); return true; });
+  ipcMain.handle(IPC.senderPing, async () => {
+    try { return deps.sender.ping(); } catch { return false; }
+  });
+  ipcMain.handle(IPC.senderStart, async (_e, req: { messages?: unknown }) => {
+    if (!Array.isArray(req?.messages)) throw new Error("Invalid message queue.");
+    return deps.sender!.startSending(req.messages as never[]);
+  });
+  ipcMain.handle(IPC.senderStop, (_e, req: { requestId?: unknown }) => {
+    if (typeof req?.requestId !== "string" || req.requestId.length > 100) throw new Error("Invalid requestId.");
+    return deps.sender.stopSending(req.requestId);
+  });
   ipcMain.handle(IPC.getSettings, () => {
     return { settings: deps.settings.settings };
   });

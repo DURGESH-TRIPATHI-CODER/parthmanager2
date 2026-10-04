@@ -43,6 +43,13 @@ const IPC = {
   handoffQueue: "queue:handoff",
   updateQueueStatus: "queue:updateStatus",
   loadLastQueue: "queue:loadLast",
+  senderGetState: "sender:getState",
+  senderPair: "sender:pair",
+  senderCancelPair: "sender:cancelPair",
+  senderDisconnect: "sender:disconnect",
+  senderPing: "sender:ping",
+  senderStart: "sender:start",
+  senderStop: "sender:stop",
 } as const satisfies (typeof import("../shared/types"))["IPC"];
 
 const api = {
@@ -85,6 +92,19 @@ const api = {
 
   loadLastQueue: (): Promise<QueuePayload | null> =>
     ipcRenderer.invoke(IPC.loadLastQueue),
+
+  senderGetState: (): Promise<unknown> => ipcRenderer.invoke(IPC.senderGetState),
+  senderPair: (): Promise<unknown> => ipcRenderer.invoke(IPC.senderPair),
+  senderCancelPair: (): Promise<boolean> => ipcRenderer.invoke(IPC.senderCancelPair),
+  senderDisconnect: (): Promise<boolean> => ipcRenderer.invoke(IPC.senderDisconnect),
+  senderPing: (): Promise<boolean> => ipcRenderer.invoke(IPC.senderPing),
+  senderStart: (messages: Array<Pick<import("../shared/types").QueueItem, "id" | "name" | "phone" | "message">>): Promise<string> => ipcRenderer.invoke(IPC.senderStart, { messages }),
+  senderStop: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.senderStop, { requestId }),
+  onSenderEvent: (callback: (event: { type: string; payload: unknown }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload as { type: string; payload: unknown });
+    ipcRenderer.on("sender:event", listener);
+    return () => ipcRenderer.removeListener("sender:event", listener);
+  },
 };
 
 export type ParthSevaApi = typeof api;
