@@ -50,6 +50,7 @@ const IPC = {
   senderPing: "sender:ping",
   senderStart: "sender:start",
   senderStop: "sender:stop",
+  downloadParthSenderExtension: "extension:downloadParthSender",
 } as const satisfies (typeof import("../shared/types"))["IPC"];
 
 const api = {
@@ -100,6 +101,8 @@ const api = {
   senderPing: (): Promise<boolean> => ipcRenderer.invoke(IPC.senderPing),
   senderStart: (messages: Array<Pick<import("../shared/types").QueueItem, "id" | "name" | "phone" | "message">>): Promise<string> => ipcRenderer.invoke(IPC.senderStart, { messages }),
   senderStop: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.senderStop, { requestId }),
+  downloadParthSenderExtension: (): Promise<{ canceled: boolean; filePath?: string }> =>
+    ipcRenderer.invoke(IPC.downloadParthSenderExtension),
   onSenderEvent: (callback: (event: { type: string; payload: unknown }) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload as { type: string; payload: unknown });
     ipcRenderer.on("sender:event", listener);

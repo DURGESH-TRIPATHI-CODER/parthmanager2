@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ipcMain, dialog, BrowserWindow } from "electron";
+import { app, ipcMain, dialog, BrowserWindow } from "electron";
 import type {
   DiscoveryResult,
   FileInfo,
@@ -68,6 +68,24 @@ function requireRoot(settings: SettingsStore): string {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
+  ipcMain.handle(IPC.downloadParthSenderExtension, async (event) => {
+    const sourcePath = app.isPackaged
+      ? path.join(process.resourcesPath, "parthsender.zip")
+      : path.join(app.getAppPath(), "public", "parthsender.zip");
+    if (!fs.existsSync(sourcePath)) throw new Error("The ParthSender extension download is missing from this installation.");
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: "Save ParthSender extension",
+      defaultPath: path.join(app.getPath("downloads"), "parthsender.zip"),
+      filters: [{ name: "ZIP archive", extensions: ["zip"] }],
+    };
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return { canceled: true };
+    await fs.promises.copyFile(sourcePath, result.filePath);
+    return { canceled: false, filePath: result.filePath };
+  });
   ipcMain.handle(IPC.senderGetState, () => deps.sender.getState());
   ipcMain.handle(IPC.senderPair, () => deps.sender.beginPairing());
   ipcMain.handle(IPC.senderCancelPair, () => { deps.sender.cancelPairing(); return true; });

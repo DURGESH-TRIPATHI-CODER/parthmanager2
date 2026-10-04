@@ -137,6 +137,7 @@ export default function App() {
             error={error}
             onRefresh={() => void refreshDiscovery()}
             onOpenFile={() => setScreen("import")}
+            onStartAutomation={() => setScreen("import")}
             onOpenSettings={() => setScreen("settings")}
           />
         )}

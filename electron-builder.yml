@@ -10,6 +10,10 @@ files:
   - dist/**/*
   - package.json
 
+extraResources:
+  - from: public/parthsender.zip
+    to: parthsender.zip
+
 asar: true
 
 win:

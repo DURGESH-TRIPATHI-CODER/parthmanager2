@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { DiscoveryResult, Settings } from "@shared/types";
 
 interface Props {
@@ -6,11 +7,27 @@ interface Props {
   error: string | null;
   onRefresh: () => void;
   onOpenFile: () => void;
+  onStartAutomation: () => void;
   onOpenSettings: () => void;
 }
 
-export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, onOpenSettings }: Props) {
+export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, onStartAutomation, onOpenSettings }: Props) {
+  const [extensionMessage, setExtensionMessage] = useState("");
+  const [downloading, setDownloading] = useState(false);
   const today = new Date();
+
+  const downloadExtension = async () => {
+    setDownloading(true);
+    setExtensionMessage("");
+    try {
+      const result = await window.parthseva.downloadParthSenderExtension();
+      if (!result.canceled && result.filePath) setExtensionMessage(`Extension ZIP saved to ${result.filePath}`);
+    } catch (e) {
+      setExtensionMessage(e instanceof Error ? e.message : "Could not save the extension ZIP.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const fileStatus = () => {
     if (error) return <span className="status-pill error">Error</span>;
@@ -26,6 +43,15 @@ export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, o
       <div className="screen-head">
         <h2>Dashboard</h2>
         <button className="btn" onClick={onRefresh}>Refresh</button>
+      </div>
+
+      <div className="card wide dashboard-start-card">
+        <div>
+          <div className="card-label">Birthday messaging</div>
+          <div className="card-value">Ready to start?</div>
+          <div className="card-sub">Review today’s recipients and messages before confirming the send.</div>
+        </div>
+        <button className="btn primary" onClick={onStartAutomation}>Start Automation</button>
       </div>
 
       <div className="card-grid">
@@ -81,6 +107,21 @@ export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, o
               the <b>{discovery.monthName}</b> folder, then refresh.
             </div>
           )}
+        </div>
+
+        <div className="card wide extension-setup-card">
+          <div className="card-label">ParthSender Chrome extension · v1.0.0</div>
+          <p>Download and load the extension once to connect Chrome with ParthSeva Manager.</p>
+          <button className="btn primary" disabled={downloading} onClick={() => void downloadExtension()}>
+            {downloading ? "Preparing download…" : "Download Latest Extension (ZIP)"}
+          </button>
+          {extensionMessage && <div className="hint" role="status">{extensionMessage}</div>}
+          <ol className="extension-steps">
+            <li>Extract the downloaded <b>parthsender.zip</b> file.</li>
+            <li>In Chrome, open <code>chrome://extensions</code> and turn on <b>Developer mode</b>.</li>
+            <li>Click <b>Load unpacked</b> and select the extracted <b>parthsender</b> folder containing <code>manifest.json</code>.</li>
+            <li>Open WhatsApp Web in that Chrome profile, then connect using the ParthSender panel in this app.</li>
+          </ol>
         </div>
       </div>
     </section>

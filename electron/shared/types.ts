@@ -237,6 +237,7 @@ export const IPC = {
   senderPing: "sender:ping",
   senderStart: "sender:start",
   senderStop: "sender:stop",
+  downloadParthSenderExtension: "extension:downloadParthSender",
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
