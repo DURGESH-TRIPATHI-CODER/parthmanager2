@@ -1,0 +1,48 @@
+.seva-notice { --seva-accent: #bd5d1b; color: var(--text); }
+.seva-topbar { display:flex; align-items:center; gap:18px; padding:16px 20px; margin-bottom:14px; background:#242a36; color:#f5f6f8; border-radius:10px; }
+.seva-topbar h2 { margin:0; font-size:19px; }
+.seva-topbar span { font-size:12px; color:#c0c5ce; }
+.seva-topbar .btn { margin-left:auto; }
+.seva-workspace { display:grid; grid-template-columns:minmax(330px, 44%) minmax(0, 1fr); gap:16px; align-items:start; }
+.seva-editor { max-height:calc(100vh - 150px); overflow:auto; padding:2px 5px 24px 0; }
+.seva-field-card,.seva-section,.seva-footer-editor { display:flex; flex-direction:column; gap:12px; padding:14px; margin-bottom:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
+.seva-field-card label,.seva-entry label,.seva-footer-editor { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-soft); font-weight:600; }
+.seva-field-card input:not([type=range]):not([type=color]),.seva-entry input:not([type=checkbox]),.seva-footer-editor textarea { width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font:inherit; color:var(--text); background:var(--bg); }
+.seva-field-card input[type=range] { accent-color:var(--seva-accent); }
+.seva-field-card output { float:right; color:var(--text); }
+.seva-color { width:48px; height:32px; padding:2px; border:1px solid var(--border); border-radius:6px; }
+.seva-section { padding:0; overflow:hidden; gap:0; }
+.seva-section-head { display:flex; align-items:center; gap:8px; padding:12px; background:var(--bg); border-bottom:1px solid var(--border); }
+.seva-section-head h3 { flex:1; margin:0; color:#733a15; font-size:14px; }
+.seva-section-head span { color:var(--text-soft); font-size:12px; }
+.seva-section-head .btn { padding:6px 9px; font-size:12px; }
+.seva-entry { margin:9px; padding:11px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }
+.seva-entry-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.seva-drag { cursor:grab; color:var(--text-soft); font-size:12px; user-select:none; }
+.seva-entry .danger { color:#a8434a; }
+.seva-entry label { margin:8px 0; }
+.seva-entry .seva-check { flex-direction:row; align-items:center; color:var(--text); }
+.seva-empty { padding:0 12px; color:var(--text-soft); font-size:12px; font-style:italic; }
+.seva-preview-area { min-height:calc(100vh - 150px); padding:22px; background:#e7ded0; border-radius:10px; overflow:auto; }
+.seva-paper { max-width:720px; min-height:650px; margin:0 auto; padding:48px 50px; border:1px solid #e4cda2; box-shadow:0 10px 30px #50321426; color:#3a2a1a; text-align:center; font-family:Georgia,"Times New Roman",serif; }
+.seva-paper>h1 { margin:0; color:#7a3b12; font-size:31px; }
+.seva-ornament { display:flex; align-items:center; justify-content:center; gap:12px; margin:14px auto 28px; max-width:300px; color:#c99a63; }
+.seva-ornament span { flex:1; border-top:1px solid #c99a63; }
+.seva-doc-section { margin:0 0 24px; }
+.seva-doc-section h2 { color:#7a3b12; font-size:21px; }
+.seva-doc-section h2:after { content:""; display:block; width:52px; margin:6px auto; border-top:2px solid #c99a63; }
+.seva-donors { display:flex; flex-wrap:wrap; }
+.seva-donor { flex:0 0 100%; padding:7px 12px; }
+.seva-donor.half { flex-basis:50%; }
+.seva-donor-name { font-weight:700; text-transform:uppercase; line-height:1.3; overflow-wrap:anywhere; }
+.seva-donor-note { margin-top:3px; color:#5a4328; font-size:14px; font-style:italic; }
+.seva-blessing { margin-top:28px; padding-top:18px; border-top:1px solid #c99a63; line-height:1.55; font-style:italic; }
+:root[data-theme="dark"] .seva-preview-area { background:#29251f; }
+:root[data-theme="dark"] .seva-paper { border-color:#a98758; }
+@media(max-width:1050px) { .seva-workspace { grid-template-columns:1fr; } .seva-editor { max-height:none; } }
+@media print {
+  body * { visibility:hidden !important; }
+  .seva-preview-area,.seva-preview-area * { visibility:visible !important; }
+  .seva-preview-area { position:absolute; inset:0; overflow:visible; padding:0; background:#fff; }
+  .seva-paper { max-width:none; min-height:0; border:0; box-shadow:none; padding:0; }
+}
