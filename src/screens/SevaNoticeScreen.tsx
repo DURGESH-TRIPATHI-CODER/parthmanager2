@@ -19,6 +19,21 @@ function clampSize(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_NAME_SIZE;
   return Math.min(MAX_NAME_SIZE, Math.max(MIN_NAME_SIZE, Math.round(value)));
 }
+
+/** Global name size applied to all donors when the +/- buttons are clicked. */
+let globalNameSize = DEFAULT_NAME_SIZE;
+/** Step amount for the global +/- buttons. */
+let globalNameStep = 4;
+/** Reset global size to defaults. */
+function resetGlobalNameSize() {
+  globalNameSize = DEFAULT_NAME_SIZE;
+}
+
+/** Apply a size delta to all entries across all sections. */
+const addEntrySize = (delta: number) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => ({ ...e, size: clampSize(e.size + delta) })) })));
+/** Reset all entries to the current global size. */
+const resetAllEntrySizes = () => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => ({ ...e, size: globalNameSize })) })));
+
 const defaultFooter = "May Their Lordships Sri Sri Radha Gopinath bestow Their infinite mercy and choicest blessings upon all the sponsors, their families, and all living beings. Hare Krishna.";
 const initialSections: SponsorSection[] = [
   { id: "nitya", title: "Nitya Seva", entries: [] },
@@ -27,8 +42,7 @@ const initialSections: SponsorSection[] = [
   { id: "lunch", title: "Lunch Prasad", entries: [] },
 ];
 
-/**
- * Opens the print dialog for the panel on screen. Chromium takes the suggested
+/** Opens the print dialog for the panel on screen. Chromium takes the suggested
  * PDF file name from the document title, so it is swapped for the duration of
  * the dialog and restored afterwards.
  */
@@ -49,8 +63,7 @@ function printAs(title: string) {
   window.print();
 }
 
-/**
- * Keeps the sheet at A4 landscape proportions: its minimum height always
+/** Keeps the sheet at A4 landscape proportions: its minimum height always
  * matches the paper's width (297 × 210 mm), so the preview reads as a real
  * page. Content taller than one page simply lengthens the sheet.
  */
@@ -99,8 +112,7 @@ function FittedName({ text, max }: { text: string; max: number }) {
   return <div className="seva-donor-name" ref={ref}>{text || " "}</div>;
 }
 
-/**
- * The default date heading, taken from the system clock: the notice is prepared
+/** The default date heading, taken from the system clock: the notice is prepared
  * a day ahead, so it starts on tomorrow's date. Month is always spelled out,
  * e.g. "02nd November 2026". The heading stays editable in the field above.
  */
@@ -194,9 +206,10 @@ export function SevaNoticeScreen() {
     window.setTimeout(() => setCopied((current) => (current === key ? null : current)), 1500);
   };
 
-  const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: s.entries.map((e) => e.id === id ? { ...e, ...patch } : e) }));
-  const addEntry = (sectionId: string) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: [...s.entries, { id: crypto.randomUUID(), name: "", note: "", size: DEFAULT_NAME_SIZE, sideBySide: false }] }));
-  const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: s.entries.filter((e) => e.id !== id) }));
+  const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => e.id === id ? { ...e, ...patch } : e) })));
+  const addEntry = (sectionId: string) => setSections((all) => all.map((s) => ({ ...s, entries: [...s.entries, { id: crypto.randomUUID(), name: "", note: "", size: globalNameSize, sideBySide: false }] })));
+  const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.filter((e) => e.id !== id) })));
+
   const dropInto = (sectionId: string, beforeId?: string) => {
     if (!dragId || !dragFrom) return;
     setSections((all) => {
@@ -215,7 +228,8 @@ export function SevaNoticeScreen() {
         return { ...section, entries };
       });
     });
-    setDragId(null); setDragFrom(null);
+    setDragId(null);
+    setDragFrom(null);
   };
 
   return <section className="seva-notice">
@@ -228,33 +242,61 @@ export function SevaNoticeScreen() {
         <div className="seva-field-card">
           <label>Date heading<input value={date} onChange={(e) => setDate(e.target.value)} placeholder="e.g. 01st October 2026" /></label>
           <label>Sheet background<input className="seva-color" type="color" value={paper} onChange={(e) => setPaper(e.target.value)} /></label>
+          <div className="seva-size-row" style={{ marginTop: "8px" }}>
+            <span className="seva-size-label">Global name size</span>
+            <button type="button" className="seva-step" aria-label="Decrease global name size" onClick={() => { globalNameSize = clampSize(globalNameSize - globalNameStep); addEntrySize(-globalNameStep); }} style={{ flex: 0, marginRight: 4 }}>−</button>
+            <input
+              className="seva-size-input"
+              type="number"
+              min={MIN_NAME_SIZE}
+              max={MAX_NAME_SIZE}
+              value={globalNameSize}
+              onChange={(e) => { globalNameSize = clampSize(Number(e.target.value)); addEntrySize(Number(e.target.value)); }}
+            />
+            <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => { globalNameSize = clampSize(globalNameSize + globalNameStep); addEntrySize(globalNameStep); }} style={{ flex: 0, marginLeft: 4 }}>+</button>
+            <span className="seva-size-unit">px</span>
+          </div>
         </div>
-        {sections.map((section) => <div className="seva-section" key={section.id} onDragOver={(e) => e.preventDefault()} onDrop={() => dropInto(section.id)}>
-          <div className="seva-section-head"><h3>{section.title}</h3><span>{section.entries.length}</span><button className="btn" onClick={() => addEntry(section.id)}>＋ Add donor</button></div>
-          {!section.entries.length && <p className="seva-empty">Drop a donor here or add one.</p>}
-          {section.entries.map((entry) => <div className="seva-entry" key={entry.id} draggable onDragStart={() => { setDragId(entry.id); setDragFrom(section.id); }} onDragEnd={() => { setDragId(null); setDragFrom(null); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); dropInto(section.id, entry.id); }}>
-            <div className="seva-entry-head"><span className="seva-drag" title="Drag to reorder or move">⠿ Drag</span><button className="btn danger" onClick={() => removeEntry(section.id, entry.id)}>Remove</button></div>
-            <label>Donor name<input value={entry.name} onChange={(e) => patchEntry(section.id, entry.id, { name: e.target.value })} placeholder="Full name" /></label>
-            <label>Note or dedication<input value={entry.note} onChange={(e) => patchEntry(section.id, entry.id, { note: e.target.value })} placeholder="In loving memory of…" /></label>
-            <div className="seva-size-row">
-              <span className="seva-size-label">Name size</span>
-              <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - 4) })}>−</button>
-              <input
-                className="seva-size-input"
-                type="number"
-                min={MIN_NAME_SIZE}
-                max={MAX_NAME_SIZE}
-                value={entry.size}
-                onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
-              />
-              <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + 4) })}>+</button>
-              <span className="seva-size-unit">px</span>
+        {sections.map((section) => (
+          <div className="seva-section" key={section.id} onDragOver={(e) => e.preventDefault()} onDrop={() => dropInto(section.id)}>
+            <div className="seva-section-head">
+              <h3>{section.title}</h3>
+              <span>{section.entries.length}</span>
+              <button className="btn" onClick={() => addEntry(section.id)}>＋ Add donor</button>
             </div>
-            <label className="seva-check"><input type="checkbox" checked={entry.sideBySide} onChange={(e) => patchEntry(section.id, entry.id, { sideBySide: e.target.checked })} /> Place side-by-side (two columns)</label>
-          </div>)}
-        </div>)}
+            {!section.entries.length && <p className="seva-empty">Drop a donor here or add one.</p>}
+            {section.entries.map((entry) => (
+              <div className="seva-entry" key={entry.id} draggable onDragStart={() => { setDragId(entry.id); setDragFrom(section.id); }} onDragEnd={() => { setDragId(null); setDragFrom(null); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.stopPropagation(); dropInto(section.id, entry.id); }}>
+                <div className="seva-entry-head">
+                  <span className="seva-drag" title="Drag to reorder or move">⠿ Drag</span>
+                  <button className="btn danger" onClick={() => removeEntry(section.id, entry.id)}>Remove</button>
+                </div>
+                <label>Donor name<input value={entry.name} onChange={(e) => patchEntry(section.id, entry.id, { name: e.target.value })} placeholder="Full name" /></label>
+                <label>Note or dedication<input value={entry.note} onChange={(e) => patchEntry(section.id, entry.id, { note: e.target.value })} placeholder="In loving memory of…" /></label>
+                <div className="seva-size-row">
+                  <span className="seva-size-label">Name size</span>
+                  <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - 4) })}>−</button>
+                  <input
+                    className="seva-size-input"
+                    type="number"
+                    min={MIN_NAME_SIZE}
+                    max={MAX_NAME_SIZE}
+                    value={entry.size}
+                    onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
+                  />
+                  <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + 4) })}>+</button>
+                  <span className="seva-size-unit">px</span>
+                </div>
+                <label className="seva-check">
+                  <input type="checkbox" checked={entry.sideBySide} onChange={(e) => patchEntry(section.id, entry.id, { sideBySide: e.target.checked })} /> Place side-by-side (two columns)
+                </label>
+              </div>
+            ))}
+          </div>
+        ))}
         <label className="seva-footer-editor">Closing blessing<textarea rows={4} value={footer} onChange={(e) => setFooter(e.target.value)} /></label>
-      </aside>      <div className="seva-preview-column">
+      </aside>
+      <div className="seva-preview-column">
         <div className="seva-tabs" role="tablist" aria-label="Notice and announcement tabs">
           {TABS.map((item) => (
             <button
@@ -328,4 +370,4 @@ export function SevaNoticeScreen() {
       </div>
     </div>
   </section>;
-}
+}
