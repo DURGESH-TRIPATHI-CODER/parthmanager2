@@ -7,6 +7,7 @@ import type {
   MappingLookupResult,
   QueuePayload,
   SaveMappingRequest,
+  SevaDocxRequest,
   Settings,
   SheetSummary,
   TemplateSaveRequest,
@@ -51,6 +52,7 @@ const IPC = {
   senderStart: "sender:start",
   senderStop: "sender:stop",
   downloadParthSenderExtension: "extension:downloadParthSender",
+  sevaSaveDocx: "seva:saveDocx",
 } as const satisfies (typeof import("../shared/types"))["IPC"];
 
 const api = {
@@ -103,6 +105,9 @@ const api = {
   senderStop: (requestId: string): Promise<boolean> => ipcRenderer.invoke(IPC.senderStop, { requestId }),
   downloadParthSenderExtension: (): Promise<{ canceled: boolean; filePath?: string }> =>
     ipcRenderer.invoke(IPC.downloadParthSenderExtension),
+
+  sevaSaveDocx: (req: SevaDocxRequest): Promise<{ canceled: boolean; filePath?: string }> =>
+    ipcRenderer.invoke(IPC.sevaSaveDocx, req),
   onSenderEvent: (callback: (event: { type: string; payload: unknown }) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload as { type: string; payload: unknown });
     ipcRenderer.on("sender:event", listener);

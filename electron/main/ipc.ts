@@ -10,6 +10,7 @@ import type {
   QueuePayload,
   SaveMappingRequest,
   SheetSummary,
+  SevaDocxRequest,
   TemplateSaveRequest,
   UpdateStatusRequest,
   ValidationResult,
@@ -26,6 +27,7 @@ import {
 } from "./excel";
 import { findFilesForDate } from "./fileFinder";
 import { handoffQueue } from "./handoff";
+import { buildSevaDocx } from "./sevaDocx";
 import type { PairingServer } from "../localConnection/server";
 
 /**
@@ -86,6 +88,42 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     await fs.promises.copyFile(sourcePath, result.filePath);
     return { canceled: false, filePath: result.filePath };
   });
+  ipcMain.handle(IPC.sevaSaveDocx, async (event, req: Partial<SevaDocxRequest>) => {
+    if (!req || typeof req !== "object") throw new Error("Invalid document request.");
+    if (req.text !== undefined && typeof req.text !== "string") throw new Error("Invalid document text.");
+    if (req.text && req.text.length > 1_000_000) throw new Error("Document text is too long.");
+    const sections = (req.sections ?? []).map((section) => ({
+      heading: String(section?.heading ?? ""),
+      entries: (Array.isArray(section?.entries) ? section.entries : []).map((entry) => ({
+        name: String(entry?.name ?? ""),
+        note: entry?.note === undefined ? undefined : String(entry.note),
+        size: Number.isFinite(entry?.size) ? Number(entry.size) : undefined,
+      })),
+    }));
+    const defaultName = typeof req.defaultName === "string" && req.defaultName.trim()
+      ? req.defaultName.trim()
+      : "Seva List";
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: "Save as Word document",
+      defaultPath: path.join(app.getPath("downloads"), `${defaultName}.docx`),
+      filters: [{ name: "Word document", extensions: ["docx"] }],
+    };
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return { canceled: true };
+    const docx = await buildSevaDocx({
+      defaultName,
+      date: req.date === undefined ? undefined : String(req.date),
+      text: req.text,
+      footer: req.footer === undefined ? undefined : String(req.footer),
+      sections,
+    });
+    await fs.promises.writeFile(result.filePath, docx);
+    return { canceled: false, filePath: result.filePath };
+  });
+
   ipcMain.handle(IPC.senderGetState, () => deps.sender.getState());
   ipcMain.handle(IPC.senderPair, () => deps.sender.beginPairing());
   ipcMain.handle(IPC.senderCancelPair, () => { deps.sender.cancelPairing(); return true; });

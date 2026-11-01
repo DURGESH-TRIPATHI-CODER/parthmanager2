@@ -1,29 +1,201 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { buildSevaAnnouncements, formatSevaDate, parseNoticeDate } from "@shared/sevaAnnouncement";
 import "./SevaNoticeScreen.css";
 
-interface Sponsor { id: string; name: string; note: string; sideBySide: boolean }
+interface Sponsor { id: string; name: string; note: string; size: number; sideBySide: boolean }
 interface SponsorSection { id: string; title: string; entries: Sponsor[] }
+type NoticeTab = "list" | "mangal" | "lunch";
+const TABS: Array<{ key: NoticeTab; label: string }> = [
+  { key: "list", label: "Seva List" },
+  { key: "mangal", label: "Mangal Aarti Announcement" },
+  { key: "lunch", label: "Lunch Announcement" },
+];
+const MIN_NAME_SIZE = 8;
+const MAX_NAME_SIZE = 400;
+const DEFAULT_NAME_SIZE = 72;
+
+/** Keeps a typed or clicked size inside the supported range. */
+function clampSize(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_NAME_SIZE;
+  return Math.min(MAX_NAME_SIZE, Math.max(MIN_NAME_SIZE, Math.round(value)));
+}
 const defaultFooter = "May Their Lordships Sri Sri Radha Gopinath bestow Their infinite mercy and choicest blessings upon all the sponsors, their families, and all living beings. Hare Krishna.";
 const initialSections: SponsorSection[] = [
   { id: "nitya", title: "Nitya Seva", entries: [] },
-  { id: "raj", title: "Raj Bhoga", entries: [] },
+  { id: "bhagvat", title: "Bhagvat Seva", entries: [] },
+  { id: "priti", title: "Priti Bhoj Seva", entries: [] },
   { id: "lunch", title: "Lunch Prasad", entries: [] },
-  { id: "dinner", title: "Dinner Prasad", entries: [] },
-  { id: "breakfast", title: "Breakfast Prasad", entries: [] },
 ];
+
+/**
+ * Opens the print dialog for the panel on screen. Chromium takes the suggested
+ * PDF file name from the document title, so it is swapped for the duration of
+ * the dialog and restored afterwards.
+ */
+/** Strips characters Windows does not allow in file names. */
+function fileSafe(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+}
+
+function printAs(title: string) {
+  const previousTitle = document.title;
+  document.title = fileSafe(title);
+  const restore = () => {
+    document.title = previousTitle;
+    window.clearTimeout(fallback);
+  };
+  const fallback = window.setTimeout(restore, 60_000);
+  window.addEventListener("afterprint", restore, { once: true });
+  window.print();
+}
+
+/**
+ * Keeps the sheet at A4 landscape proportions: its minimum height always
+ * matches the paper's width (297 × 210 mm), so the preview reads as a real
+ * page. Content taller than one page simply lengthens the sheet.
+ */
+function useA4Landscape(ref: React.RefObject<HTMLElement | null>) {
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const apply = () => {
+      const width = element.clientWidth;
+      if (!width) return;
+      const next = `${Math.round((width * 210) / 297)}px`;
+      if (element.style.minHeight !== next) element.style.minHeight = next;
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+}
+
+/** A donor name, scaled up so it fills the width of the paper. */
+function FittedName({ text, max }: { text: string; max: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const fit = () => {
+      const width = element.parentElement?.clientWidth ?? 0;
+      if (width <= 0) return;
+      let low = 14;
+      let high = Math.max(max, low + 1);
+      for (let step = 0; step < 10; step += 1) {
+        const mid = (low + high) / 2;
+        element.style.fontSize = `${mid}px`;
+        if (element.scrollWidth <= width) low = mid;
+        else high = mid;
+      }
+      element.style.fontSize = `${Math.floor(low)}px`;
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    if (element.parentElement) observer.observe(element.parentElement);
+    void document.fonts?.ready.then(fit);
+    return () => observer.disconnect();
+  }, [text, max]);
+  return <div className="seva-donor-name" ref={ref}>{text || " "}</div>;
+}
+
+/**
+ * The default date heading, taken from the system clock: the notice is prepared
+ * a day ahead, so it starts on tomorrow's date. Month is always spelled out,
+ * e.g. "02nd November 2026". The heading stays editable in the field above.
+ */
+function systemHeading(dayOffset: number): string {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+  return formatSevaDate({
+    year: target.getFullYear(),
+    month: target.getMonth() + 1,
+    day: target.getDate(),
+  });
+}
 
 export function SevaNoticeScreen() {
   const [sections, setSections] = useState(initialSections);
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(() => systemHeading(1));
+  const [copied, setCopied] = useState<string | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   const [footer, setFooter] = useState(defaultFooter);
   const [paper, setPaper] = useState("#fdf2e1");
-  const [fontSize, setFontSize] = useState(18);
+  const [tab, setTab] = useState<NoticeTab>("list");
+  const paperRef = useRef<HTMLElement>(null);
+  useA4Landscape(paperRef);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const total = useMemo(() => sections.reduce((n, section) => n + section.entries.length, 0), [sections]);
+  const announcements = useMemo(() => buildSevaAnnouncements(sections, date), [sections, date]);
+  const activeText = tab === "mangal" ? announcements.mangalAarti : announcements.lunch;
+
+  const activeLabel = tab === "list" ? "Seva List" : tab === "mangal" ? "Mangal Aarti Announcement" : "Lunch Announcement";
+  // The saved file is named after the notice date currently in the editor.
+  const fileDate = useMemo(() => {
+    const parsed = parseNoticeDate(date);
+    return parsed ? formatSevaDate(parsed) : date.replace(/,$/, "");
+  }, [date]);
+  const fileName = fileDate.trim() ? `${activeLabel} ${fileDate}` : activeLabel;
+  const printPanel = () => printAs(fileName);
+
+  // The Word document carries the same sections, names, notes and sizes as the sheet.
+  const docxSections = sections
+    .map((section) => ({
+      heading: `Today’s ${section.title} contributed by`,
+      entries: section.entries
+        .filter((entry) => entry.name.trim() || entry.note.trim())
+        .map((entry) => ({
+          name: entry.name.trim(),
+          note: entry.note.trim() || undefined,
+          size: entry.size,
+        })),
+    }))
+    .filter((section) => section.entries.length > 0);
+
+  const download = async () => {
+    const bridge = window.parthseva;
+    const name = fileSafe(fileName) || activeLabel;
+    const request = tab === "list"
+      ? { defaultName: name, date, sections: docxSections, footer }
+      : { defaultName: name, text: activeText };
+    try {
+      if (bridge?.sevaSaveDocx) {
+        const saved = await bridge.sevaSaveDocx(request);
+        setSaveNote(saved.canceled ? null : `Saved to ${saved.filePath}`);
+        return;
+      }
+      const fallback = tab === "list" ? `${date}\n\n${footer}` : activeText;
+      const url = URL.createObjectURL(new Blob([fallback], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${name}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setSaveNote(error instanceof Error ? `Could not save: ${error.message}` : "Could not save the file.");
+    }
+  };
+
+  const copyAnnouncement = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(key);
+    window.setTimeout(() => setCopied((current) => (current === key ? null : current)), 1500);
+  };
 
   const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: s.entries.map((e) => e.id === id ? { ...e, ...patch } : e) }));
-  const addEntry = (sectionId: string) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: [...s.entries, { id: crypto.randomUUID(), name: "", note: "", sideBySide: false }] }));
+  const addEntry = (sectionId: string) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: [...s.entries, { id: crypto.randomUUID(), name: "", note: "", size: DEFAULT_NAME_SIZE, sideBySide: false }] }));
   const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((s) => s.id !== sectionId ? s : { ...s, entries: s.entries.filter((e) => e.id !== id) }));
   const dropInto = (sectionId: string, beforeId?: string) => {
     if (!dragId || !dragFrom) return;
@@ -48,14 +220,13 @@ export function SevaNoticeScreen() {
 
   return <section className="seva-notice">
     <header className="seva-topbar">
-      <div><h2>Seva Notice Builder</h2><span>Daily temple sponsorship sheet · {total} donor{total === 1 ? "" : "s"}</span></div>
-      <button className="btn primary" onClick={() => window.print()}>Print / Save PDF</button>
+      <div><h2>Seva List</h2><span>Daily temple sponsorship sheet · {total} donor{total === 1 ? "" : "s"}</span></div>
+      <button className="btn primary" onClick={printPanel}>Print / Save PDF</button>
     </header>
     <div className="seva-workspace">
       <aside className="seva-editor" aria-label="Notice editor">
         <div className="seva-field-card">
           <label>Date heading<input value={date} onChange={(e) => setDate(e.target.value)} placeholder="e.g. 01st October 2026" /></label>
-          <label>Donor name size <output>{fontSize}px</output><input type="range" min="14" max="36" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} /></label>
           <label>Sheet background<input className="seva-color" type="color" value={paper} onChange={(e) => setPaper(e.target.value)} /></label>
         </div>
         {sections.map((section) => <div className="seva-section" key={section.id} onDragOver={(e) => e.preventDefault()} onDrop={() => dropInto(section.id)}>
@@ -65,24 +236,95 @@ export function SevaNoticeScreen() {
             <div className="seva-entry-head"><span className="seva-drag" title="Drag to reorder or move">⠿ Drag</span><button className="btn danger" onClick={() => removeEntry(section.id, entry.id)}>Remove</button></div>
             <label>Donor name<input value={entry.name} onChange={(e) => patchEntry(section.id, entry.id, { name: e.target.value })} placeholder="Full name" /></label>
             <label>Note or dedication<input value={entry.note} onChange={(e) => patchEntry(section.id, entry.id, { note: e.target.value })} placeholder="In loving memory of…" /></label>
+            <div className="seva-size-row">
+              <span className="seva-size-label">Name size</span>
+              <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - 4) })}>−</button>
+              <input
+                className="seva-size-input"
+                type="number"
+                min={MIN_NAME_SIZE}
+                max={MAX_NAME_SIZE}
+                value={entry.size}
+                onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
+              />
+              <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + 4) })}>+</button>
+              <span className="seva-size-unit">px</span>
+            </div>
             <label className="seva-check"><input type="checkbox" checked={entry.sideBySide} onChange={(e) => patchEntry(section.id, entry.id, { sideBySide: e.target.checked })} /> Place side-by-side (two columns)</label>
           </div>)}
         </div>)}
         <label className="seva-footer-editor">Closing blessing<textarea rows={4} value={footer} onChange={(e) => setFooter(e.target.value)} /></label>
-      </aside>
-      <div className="seva-preview-area" aria-label="Live notice preview">
-        <article className="seva-paper" style={{ backgroundColor: paper }}>
-          <h1>{date || " "}</h1><div className="seva-ornament"><span />✧<span /></div>
-          {sections.map((section) => {
-            const entries = section.entries.filter((entry) => entry.name.trim() || entry.note.trim());
-            return entries.length ? <section className="seva-doc-section" key={section.id}><h2>{section.title}</h2><div className="seva-donors">
-              {entries.map((entry) => <div key={entry.id} className={entry.sideBySide ? "seva-donor half" : "seva-donor"}>
-                <div className="seva-donor-name" style={{ fontSize: `${fontSize}px` }}>{entry.name || " "}</div>{entry.note.trim() && <div className="seva-donor-note">{entry.note}</div>}
-              </div>)}
-            </div></section> : null;
-          })}
-          {footer.trim() && <p className="seva-blessing">{footer}</p>}
-        </article>
+      </aside>      <div className="seva-preview-column">
+        <div className="seva-tabs" role="tablist" aria-label="Notice and announcement tabs">
+          {TABS.map((item) => (
+            <button
+              key={item.key}
+              role="tab"
+              aria-selected={tab === item.key}
+              className={"seva-tab" + (tab === item.key ? " active" : "")}
+              onClick={() => { setTab(item.key); setSaveNote(null); }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {tab === "list" ? (
+          <div className="seva-preview-area seva-printable" aria-label="Live notice preview">
+            <article className="seva-paper" ref={paperRef} style={{ backgroundColor: paper }}>
+              <h1>{date || " "}</h1><div className="seva-ornament"><span />✧<span /></div>
+              {sections.map((section) => {
+                const entries = section.entries.filter((entry) => entry.name.trim() || entry.note.trim());
+                return entries.length ? <section className="seva-doc-section" key={section.id}><h2>Today’s {section.title} contributed by</h2><div className="seva-donors">
+                  {entries.map((entry) => <div key={entry.id} className={entry.sideBySide ? "seva-donor half" : "seva-donor"}>
+                    <FittedName text={entry.name} max={entry.size} />{entry.note.trim() && <div className="seva-donor-note">{entry.note}</div>}
+                  </div>)}
+                </div></section> : null;
+              })}
+              {footer.trim() && <p className="seva-blessing">{footer}</p>}
+            </article>
+          </div>
+        ) : (
+          <div className="seva-tab-panel seva-printable" aria-label={TABS.find((item) => item.key === tab)?.label}>
+            <div className="seva-tab-panel-head">
+              <h4>{tab === "mangal" ? "Mangal Arati Announcement" : "Lunch Announcement"}</h4>
+              <button className="btn" onClick={() => void copyAnnouncement(tab, activeText)}>
+                {copied === tab ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <pre className="seva-announcement-text">{activeText}</pre>
+          </div>
+        )}
+        <div className="seva-tab-actions">
+          <button
+            className="btn primary seva-icon-btn"
+            onClick={() => void download()}
+            aria-label="Download as a Word document"
+            title="Download as a Word document (.docx)"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="m7 11 5 5 5-5" />
+              <path d="M4 20h16" />
+            </svg>
+          </button>
+          <button
+            className="btn primary seva-icon-btn"
+            onClick={printPanel}
+            aria-label="Print"
+            title="Print"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9V3h12v6" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+              <path d="M6 14h12v7H6z" />
+            </svg>
+          </button>
+          <span className="seva-tab-hint">
+            {saveNote ?? (tab === "list"
+              ? "Download saves the seva list as an editable Word document; Print opens the A4 landscape page."
+              : "Written automatically from the donor names on the left; Download saves it as an editable Word document.")}
+          </span>
+        </div>
       </div>
     </div>
   </section>;

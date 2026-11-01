@@ -125,7 +125,7 @@ export default function App() {
             ))}
           </div>
         </details>
-        {([ ["seva-notice", "Seva Notice"], ["settings", "Settings"] ] as Array<[Screen, string]>).map(([id, label]) => (
+        {([["seva-notice", "Seva List"], ["settings", "Settings"]] as Array<[Screen, string]>).map(([id, label]) => (
           <button key={id} className={"nav-btn" + (screen === id ? " active" : "")} onClick={() => setScreen(id)}>{label}</button>
         ))}
       </nav>

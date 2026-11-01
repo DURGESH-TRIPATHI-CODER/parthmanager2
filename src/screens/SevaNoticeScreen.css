@@ -1,14 +1,16 @@
 .seva-notice { --seva-accent: #bd5d1b; color: var(--text); }
+/* The notice is a landscape sheet, so give this screen the full window width. */
+.content:has(.seva-notice) { max-width: 1360px; }
 .seva-topbar { display:flex; align-items:center; gap:18px; padding:16px 20px; margin-bottom:14px; background:#242a36; color:#f5f6f8; border-radius:10px; }
 .seva-topbar h2 { margin:0; font-size:19px; }
 .seva-topbar span { font-size:12px; color:#c0c5ce; }
 .seva-topbar .btn { margin-left:auto; }
-.seva-workspace { display:grid; grid-template-columns:minmax(330px, 44%) minmax(0, 1fr); gap:16px; align-items:start; }
+.seva-workspace { display:grid; grid-template-columns:minmax(280px, 340px) minmax(0, 1fr); gap:16px; align-items:start; }
 .seva-editor { max-height:calc(100vh - 150px); overflow:auto; padding:2px 5px 24px 0; }
 .seva-field-card,.seva-section,.seva-footer-editor { display:flex; flex-direction:column; gap:12px; padding:14px; margin-bottom:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
 .seva-field-card label,.seva-entry label,.seva-footer-editor { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-soft); font-weight:600; }
-.seva-field-card input:not([type=range]):not([type=color]),.seva-entry input:not([type=checkbox]),.seva-footer-editor textarea { width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font:inherit; color:var(--text); background:var(--bg); }
-.seva-field-card input[type=range] { accent-color:var(--seva-accent); }
+.seva-field-card input:not([type=range]):not([type=color]),.seva-entry input:not([type=checkbox]):not([type=range]),.seva-footer-editor textarea { width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font:inherit; color:var(--text); background:var(--bg); }
+.seva-field-card input[type=range],.seva-entry input[type=range] { width:100%; padding:0; border:0; background:transparent; accent-color:var(--seva-accent); }
 .seva-field-card output { float:right; color:var(--text); }
 .seva-color { width:48px; height:32px; padding:2px; border:1px solid var(--border); border-radius:6px; }
 .seva-section { padding:0; overflow:hidden; gap:0; }
@@ -23,26 +25,52 @@
 .seva-entry label { margin:8px 0; }
 .seva-entry .seva-check { flex-direction:row; align-items:center; color:var(--text); }
 .seva-empty { padding:0 12px; color:var(--text-soft); font-size:12px; font-style:italic; }
-.seva-preview-area { min-height:calc(100vh - 150px); padding:22px; background:#e7ded0; border-radius:10px; overflow:auto; }
-.seva-paper { max-width:720px; min-height:650px; margin:0 auto; padding:48px 50px; border:1px solid #e4cda2; box-shadow:0 10px 30px #50321426; color:#3a2a1a; text-align:center; font-family:Georgia,"Times New Roman",serif; }
-.seva-paper>h1 { margin:0; color:#7a3b12; font-size:31px; }
+.seva-size-row { display:flex; align-items:center; gap:6px; margin:10px 0 2px; }
+.seva-size-label { flex:1; font-size:12px; font-weight:600; color:var(--text-soft); }
+.seva-step { width:28px; height:28px; flex:0 0 auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-size:15px; font-weight:700; line-height:1; cursor:pointer; }
+.seva-step:hover { background:var(--hover); }
+.seva-size-input { width:56px; padding:5px 6px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; font-size:13px; text-align:center; }
+.seva-size-unit { font-size:12px; color:var(--text-soft); }
+.seva-preview-area { min-height:calc(100vh - 240px); padding:14px; background:#e7ded0; border-radius:10px; overflow:auto; }
+.seva-paper { box-sizing:border-box; width:100%; max-width:1000px; min-height:clamp(320px, 52vh, 560px); margin:0 auto; padding:12mm 14mm; border:1px solid #e4cda2; box-shadow:0 10px 30px #50321426; color:#3a2a1a; text-align:center; font-family:Georgia,"Times New Roman",serif; }
+.seva-paper>h1 { margin:0; color:#7a3b12; font-size:clamp(19px, 2.4vw, 31px); }
 .seva-ornament { display:flex; align-items:center; justify-content:center; gap:12px; margin:14px auto 28px; max-width:300px; color:#c99a63; }
 .seva-ornament span { flex:1; border-top:1px solid #c99a63; }
 .seva-doc-section { margin:0 0 24px; }
-.seva-doc-section h2 { color:#7a3b12; font-size:21px; }
+.seva-doc-section h2 { margin:0; color:#7a3b12; font-size:clamp(15px, 1.7vw, 21px); letter-spacing:.02em; }
 .seva-doc-section h2:after { content:""; display:block; width:52px; margin:6px auto; border-top:2px solid #c99a63; }
 .seva-donors { display:flex; flex-wrap:wrap; }
-.seva-donor { flex:0 0 100%; padding:7px 12px; }
+.seva-donor { flex:0 0 100%; padding:10px 0; min-width:0; }
 .seva-donor.half { flex-basis:50%; }
-.seva-donor-name { font-weight:700; text-transform:uppercase; line-height:1.3; overflow-wrap:anywhere; }
-.seva-donor-note { margin-top:3px; color:#5a4328; font-size:14px; font-style:italic; }
+.seva-donor-name { font-family:"Algerian","Nyala",Georgia,serif; font-weight:700; text-transform:uppercase; line-height:1.08; white-space:nowrap; overflow:hidden; }
+.seva-donor-note { margin-top:6px; color:#5a4328; font-size:15px; font-style:italic; text-align:center; }
 .seva-blessing { margin-top:28px; padding-top:18px; border-top:1px solid #c99a63; line-height:1.55; font-style:italic; }
 :root[data-theme="dark"] .seva-preview-area { background:#29251f; }
 :root[data-theme="dark"] .seva-paper { border-color:#a98758; }
-@media(max-width:1050px) { .seva-workspace { grid-template-columns:1fr; } .seva-editor { max-height:none; } }
+.seva-preview-column { display:flex; flex-direction:column; gap:10px; min-width:0; }
+.seva-tabs { display:flex; gap:4px; padding:5px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+.seva-tab { flex:0 0 auto; padding:8px 14px; border:0; border-radius:7px; background:transparent; color:var(--text-soft); font:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.seva-tab:hover { background:var(--hover); color:var(--text); }
+.seva-tab.active { background:#242a36; color:#f5f6f8; }
+:root[data-theme="dark"] .seva-tab.active { background:var(--nav-active-bg); color:var(--accent); }
+.seva-tab-panel { padding:16px 18px; background:var(--surface); border:1px solid var(--border); border-radius:10px; font-family:"Bell MT",Georgia,"Times New Roman",serif; }
+.seva-tab-panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.seva-tab-panel-head h4 { margin:0; font-size:14px; letter-spacing:.02em; color:#733a15; }
+.seva-tab-panel-head .btn { margin-top:0; padding:5px 10px; font-size:12px; white-space:nowrap; font-family:inherit; }
+:root[data-theme="dark"] .seva-tab-panel-head h4 { color:#e0a778; }
+.seva-announcement-text { margin:0; max-height:calc(100vh - 330px); overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-family:inherit; font-size:14px; line-height:1.6; color:var(--text); }
+.seva-tab-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.seva-tab-actions .btn { margin-top:0; }
+.seva-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; padding:0; flex:0 0 auto; }
+.seva-tab-hint { font-size:12px; line-height:1.5; color:var(--text-soft); }
+@media(max-width:900px) { .seva-announcement-text { max-height:none; } }
+@media(max-width:760px) { .seva-workspace { grid-template-columns:1fr; } .seva-editor { max-height:none; } }
 @media print {
+  @page { size:A4 landscape; margin:10mm; }
   body * { visibility:hidden !important; }
-  .seva-preview-area,.seva-preview-area * { visibility:visible !important; }
-  .seva-preview-area { position:absolute; inset:0; overflow:visible; padding:0; background:#fff; }
-  .seva-paper { max-width:none; min-height:0; border:0; box-shadow:none; padding:0; }
+  .seva-printable,.seva-printable * { visibility:visible !important; }
+  .seva-printable { position:absolute; inset:0; overflow:visible; padding:0; border:0; background:#fff; }
+  .seva-paper { box-sizing:border-box; width:100%; max-width:none; min-height:0 !important; border:0; box-shadow:none; padding:0; }
+  .seva-tab-panel-head { display:none; }
+  .seva-announcement-text { max-height:none; overflow:visible; font-size:13px; }
 }

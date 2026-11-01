@@ -238,6 +238,31 @@ export const IPC = {
   senderStart: "sender:start",
   senderStop: "sender:stop",
   downloadParthSenderExtension: "extension:downloadParthSender",
+  sevaSaveDocx: "seva:saveDocx",
 } as const;
+
+/** A donor line on the printed seva list. */
+export interface SevaDocxEntry {
+  name: string;
+  note?: string;
+  /** Name size in pixels, as set in the editor. */
+  size?: number;
+}
+
+export interface SevaDocxSection {
+  heading: string;
+  entries: SevaDocxEntry[];
+}
+
+/** Everything needed to write an editable .docx of the seva list or an announcement. */
+export interface SevaDocxRequest {
+  defaultName: string;
+  /** Large centred heading, e.g. the notice date. */
+  date?: string;
+  sections?: SevaDocxSection[];
+  /** Plain announcement text; one paragraph per line. */
+  text?: string;
+  footer?: string;
+}
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
