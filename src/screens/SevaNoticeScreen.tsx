@@ -28,6 +28,22 @@ const initialSections: SponsorSection[] = [
   { id: "priti", title: "Priti Bhoj Seva", entries: [] },
   { id: "lunch", title: "Lunch Prasad", entries: [] },
 ];
+const SEVA_OPTIONS = [
+  "Nitya Seva",
+  "Bhagvat Seva",
+  "Priti Bhoj Seva",
+  "Lunch Prasad",
+  "Special Lunch Prasad",
+  "Breakfast Prasad",
+  "Dinner Prasad",
+  "Balya Bhoga",
+  "Raj Bhoga",
+  "Puja Bhoga",
+  "Mangal Bhoga",
+  "Sandhya Bhoga",
+  "Vaikalika Bhoga",
+  "Kartik Deepdaan",
+] as const;
 
 /** Opens the print dialog for the panel on screen. Chromium takes the suggested
  * PDF file name from the document title, so it is swapped for the duration of
@@ -127,6 +143,7 @@ export function SevaNoticeScreen() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const total = useMemo(() => sections.reduce((n, section) => n + section.entries.length, 0), [sections]);
+  const availableSevas = SEVA_OPTIONS.filter((title) => !sections.some((section) => section.title === title));
   const announcements = useMemo(() => buildSevaAnnouncements(sections, date), [sections, date]);
   const activeText = tab === "mangal" ? announcements.mangalAarti : announcements.lunch;
 
@@ -212,6 +229,13 @@ export function SevaNoticeScreen() {
     })));
   };
 
+  const addSeva = (title: string) => {
+    if (!title) return;
+    setSections((all) => all.some((section) => section.title === title)
+      ? all
+      : [...all, { id: crypto.randomUUID(), title, entries: [] }]);
+  };
+
   const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
     ...section,
     entries: section.entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry),
@@ -224,6 +248,13 @@ export function SevaNoticeScreen() {
     ...section,
     entries: section.entries.filter((entry) => entry.id !== id),
   }));
+  const removeSeva = (section: SponsorSection) => {
+    const donorText = section.entries.length
+      ? ` and its ${section.entries.length} donor${section.entries.length === 1 ? "" : "s"}`
+      : "";
+    if (!window.confirm(`Remove “${section.title}”${donorText}?`)) return;
+    setSections((all) => all.filter((item) => item.id !== section.id));
+  };
 
   const dropInto = (sectionId: string, beforeId?: string) => {
     if (!dragId || !dragFrom) return;
@@ -271,12 +302,25 @@ export function SevaNoticeScreen() {
             <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => updateGlobalNameSize(globalNameSize + NAME_SIZE_STEP)} style={{ flex: 0, marginLeft: 4 }}>+</button>
             <span className="seva-size-unit">pt</span>
           </div>
+          <label className="seva-add-select-label">
+            Add Seva
+            <select
+              className="seva-add-select"
+              value=""
+              disabled={!availableSevas.length}
+              onChange={(event) => addSeva(event.target.value)}
+            >
+              <option value="">{availableSevas.length ? "Select a Seva…" : "All Sevas added"}</option>
+              {availableSevas.map((title) => <option key={title} value={title}>{title}</option>)}
+            </select>
+          </label>
         </div>
         {sections.map((section) => (
           <div className="seva-section" key={section.id} onDragOver={(e) => e.preventDefault()} onDrop={() => dropInto(section.id)}>
             <div className="seva-section-head">
               <h3>{section.title}</h3>
               <span>{section.entries.length}</span>
+              <button type="button" className="btn seva-remove-section" onClick={() => removeSeva(section)}>Remove</button>
               <button className="btn" onClick={() => addEntry(section.id)}>＋ Add donor</button>
             </div>
             {!section.entries.length && <p className="seva-empty">Drop a donor here or add one.</p>}
