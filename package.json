@@ -1,7 +1,7 @@
 {
   "name": "parthseva-manager",
   "productName": "ParthSeva Manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Offline-first desktop utility for managing daily ParthSeva Excel files.",
   "main": "dist/electron/main/main.js",
   "private": true,
