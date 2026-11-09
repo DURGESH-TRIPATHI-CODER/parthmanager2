@@ -13,26 +13,13 @@ const TABS: Array<{ key: NoticeTab; label: string }> = [
 const MIN_NAME_SIZE = 8;
 const MAX_NAME_SIZE = 400;
 const DEFAULT_NAME_SIZE = 72;
+const NAME_SIZE_STEP = 4;
 
 /** Keeps a typed or clicked size inside the supported range. */
 function clampSize(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_NAME_SIZE;
   return Math.min(MAX_NAME_SIZE, Math.max(MIN_NAME_SIZE, Math.round(value)));
 }
-
-/** Global name size applied to all donors when the +/- buttons are clicked. */
-let globalNameSize = DEFAULT_NAME_SIZE;
-/** Step amount for the global +/- buttons. */
-let globalNameStep = 4;
-/** Reset global size to defaults. */
-function resetGlobalNameSize() {
-  globalNameSize = DEFAULT_NAME_SIZE;
-}
-
-/** Apply a size delta to all entries across all sections. */
-const addEntrySize = (delta: number) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => ({ ...e, size: clampSize(e.size + delta) })) })));
-/** Reset all entries to the current global size. */
-const resetAllEntrySizes = () => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => ({ ...e, size: globalNameSize })) })));
 
 const defaultFooter = "May Their Lordships Sri Sri Radha Gopinath bestow Their infinite mercy and choicest blessings upon all the sponsors, their families, and all living beings. Hare Krishna.";
 const initialSections: SponsorSection[] = [
@@ -128,6 +115,7 @@ function systemHeading(dayOffset: number): string {
 
 export function SevaNoticeScreen() {
   const [sections, setSections] = useState(initialSections);
+  const [globalNameSize, setGlobalNameSize] = useState(DEFAULT_NAME_SIZE);
   const [date, setDate] = useState(() => systemHeading(1));
   const [copied, setCopied] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
@@ -206,9 +194,32 @@ export function SevaNoticeScreen() {
     window.setTimeout(() => setCopied((current) => (current === key ? null : current)), 1500);
   };
 
-  const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.map((e) => e.id === id ? { ...e, ...patch } : e) })));
-  const addEntry = (sectionId: string) => setSections((all) => all.map((s) => ({ ...s, entries: [...s.entries, { id: crypto.randomUUID(), name: "", note: "", size: globalNameSize, sideBySide: false }] })));
-  const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((s) => ({ ...s, entries: s.entries.filter((e) => e.id !== id) })));
+  const updateGlobalNameSize = (value: number) => {
+    const nextSize = clampSize(value);
+    const delta = nextSize - globalNameSize;
+    setGlobalNameSize(nextSize);
+    if (delta === 0) return;
+    setSections((all) => all.map((section) => ({
+      ...section,
+      entries: section.entries.map((entry) => ({
+        ...entry,
+        size: clampSize(entry.size + delta),
+      })),
+    })));
+  };
+
+  const patchEntry = (sectionId: string, id: string, patch: Partial<Sponsor>) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    entries: section.entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry),
+  }));
+  const addEntry = (sectionId: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    entries: [...section.entries, { id: crypto.randomUUID(), name: "", note: "", size: globalNameSize, sideBySide: false }],
+  }));
+  const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    entries: section.entries.filter((entry) => entry.id !== id),
+  }));
 
   const dropInto = (sectionId: string, beforeId?: string) => {
     if (!dragId || !dragFrom) return;
@@ -244,16 +255,16 @@ export function SevaNoticeScreen() {
           <label>Sheet background<input className="seva-color" type="color" value={paper} onChange={(e) => setPaper(e.target.value)} /></label>
           <div className="seva-size-row" style={{ marginTop: "8px" }}>
             <span className="seva-size-label">Global name size</span>
-            <button type="button" className="seva-step" aria-label="Decrease global name size" onClick={() => { globalNameSize = clampSize(globalNameSize - globalNameStep); addEntrySize(-globalNameStep); }} style={{ flex: 0, marginRight: 4 }}>−</button>
+            <button type="button" className="seva-step" aria-label="Decrease global name size" onClick={() => updateGlobalNameSize(globalNameSize - NAME_SIZE_STEP)} style={{ flex: 0, marginRight: 4 }}>−</button>
             <input
               className="seva-size-input"
               type="number"
               min={MIN_NAME_SIZE}
               max={MAX_NAME_SIZE}
               value={globalNameSize}
-              onChange={(e) => { globalNameSize = clampSize(Number(e.target.value)); addEntrySize(Number(e.target.value)); }}
+              onChange={(e) => updateGlobalNameSize(Number(e.target.value))}
             />
-            <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => { globalNameSize = clampSize(globalNameSize + globalNameStep); addEntrySize(globalNameStep); }} style={{ flex: 0, marginLeft: 4 }}>+</button>
+            <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => updateGlobalNameSize(globalNameSize + NAME_SIZE_STEP)} style={{ flex: 0, marginLeft: 4 }}>+</button>
             <span className="seva-size-unit">px</span>
           </div>
         </div>
@@ -275,7 +286,7 @@ export function SevaNoticeScreen() {
                 <label>Note or dedication<input value={entry.note} onChange={(e) => patchEntry(section.id, entry.id, { note: e.target.value })} placeholder="In loving memory of…" /></label>
                 <div className="seva-size-row">
                   <span className="seva-size-label">Name size</span>
-                  <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - 4) })}>−</button>
+                  <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - NAME_SIZE_STEP) })}>−</button>
                   <input
                     className="seva-size-input"
                     type="number"
@@ -284,7 +295,7 @@ export function SevaNoticeScreen() {
                     value={entry.size}
                     onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
                   />
-                  <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + 4) })}>+</button>
+                  <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + NAME_SIZE_STEP) })}>+</button>
                   <span className="seva-size-unit">px</span>
                 </div>
                 <label className="seva-check">
@@ -370,4 +381,4 @@ export function SevaNoticeScreen() {
       </div>
     </div>
   </section>;
-}
+}
