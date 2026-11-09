@@ -183,7 +183,7 @@ function resolveHeadings(dateText: string, today: Date): { lunch: string; mangal
   return { lunch: text.replace(/,$/, ""), mangal: text };
 }
 
-function sponsorLines(entries: SevaSponsor[] | undefined, empty: string): string {
+function sponsorLines(entries: SevaSponsor[] | undefined): string | null {
   const lines = (entries ?? [])
     .map((entry) => {
       const name = (entry.name ?? "").trim();
@@ -192,7 +192,7 @@ function sponsorLines(entries: SevaSponsor[] | undefined, empty: string): string
       return `• ${name}${note ? ` (${note})` : ""}`;
     })
     .filter((line) => line !== "");
-  return lines.length > 0 ? lines.join("\n") : empty;
+  return lines.length > 0 ? lines.join("\n") : null;
 }
 
 function sectionEntries(sections: SevaSectionInput[], id: string): SevaSponsor[] {
@@ -210,45 +210,43 @@ export function buildSevaAnnouncements(
 ): SevaAnnouncements {
   const headings = resolveHeadings(dateText, today);
 
-  const nitya = sponsorLines(sectionEntries(sections, "nitya"), "—");
-  const bhagvad = sponsorLines(sectionEntries(sections, "bhagvat"), "—");
-  const priti = sponsorLines(sectionEntries(sections, "priti"), "• —");
-  const lunchPrasad = sponsorLines(sectionEntries(sections, "lunch"), "• —");
+  const nitya = sponsorLines(sectionEntries(sections, "nitya"));
+  const bhagvad = sponsorLines(sectionEntries(sections, "bhagvat"));
+  const priti = sponsorLines(sectionEntries(sections, "priti"));
+  const lunchPrasad = sponsorLines(sectionEntries(sections, "lunch"));
 
-  const lunch = [
-    `${headings.lunch}: Lunch Announcement:`,
-    "",
-    "Today’s Nitya Seva which includes entire day’s bhoga, Aarati to their Lordships also entire day’s Prasad for devotees is contributed by --",
-    nitya,
-    "Today’s Bhagvad Seva which includes entire day’s bhoga, Aarati to their Lordships is contributed by --",
-    bhagvad,
-    "",
-    "Today’s Priti Bhoj Seva which includes the entire day’s Prasad for devotees is contributed by the following devotees…",
-    priti,
-    "Today’s Lunch Prasad is contributed by",
-    lunchPrasad,
-    "",
-    "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra",
-  ].join("\n");
+  const lunchBlocks = [`${headings.lunch}: Lunch Announcement:`];
+  if (nitya) lunchBlocks.push(
+    `Today’s Nitya Seva which includes entire day’s bhoga, Aarati to their Lordships also entire day’s Prasad for devotees is contributed by --\n${nitya}`,
+  );
+  if (bhagvad) lunchBlocks.push(
+    `Today’s Bhagvad Seva which includes entire day’s bhoga, Aarati to their Lordships is contributed by --\n${bhagvad}`,
+  );
+  if (priti) lunchBlocks.push(
+    `Today’s Priti Bhoj Seva which includes the entire day’s Prasad for devotees is contributed by the following devotees…\n${priti}`,
+  );
+  if (lunchPrasad) lunchBlocks.push(`Today’s Lunch Prasad is contributed by\n${lunchPrasad}`);
+  lunchBlocks.push("Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra");
+  const lunch = lunchBlocks.join("\n\n");
 
-  const mangalAarti = [
+  const mangalBlocks = [
     `${headings.mangal} – Mangal Arati Announcement:`,
-    "",
     "For the transcendental pleasure of Their Lordships Sri Sri Radha Gopinath, Sri Lalita Devi, Sri Vishaka Devi, Sri Gopalji, Sri Sri Nitai Gaurachandra, Srila Prabhupada and all the Vaisnavas –",
-    "",
-    "Today’s Nitya Seva which includes entire day’s bhoga, Aarati to their Lordships also entire day’s Prasad for devotees is contributed by --",
-    nitya,
-    "Today’s Bhagvat Seva which includes entire day’s bhoga, Aarati to their Lordships is contributed by --",
-    bhagvad,
-    "",
-    "Today’s Priti Bhoj Seva which includes the entire day’s Prasad for devotees is contributed by the following devotees…",
-    "",
-    priti,
-    "",
+  ];
+  if (nitya) mangalBlocks.push(
+    `Today’s Nitya Seva which includes entire day’s bhoga, Aarati to their Lordships also entire day’s Prasad for devotees is contributed by --\n${nitya}`,
+  );
+  if (bhagvad) mangalBlocks.push(
+    `Today’s Bhagvat Seva which includes entire day’s bhoga, Aarati to their Lordships is contributed by --\n${bhagvad}`,
+  );
+  if (priti) mangalBlocks.push(
+    `Today’s Priti Bhoj Seva which includes the entire day’s Prasad for devotees is contributed by the following devotees…\n${priti}`,
+  );
+  mangalBlocks.push(
     "We would like to pray to Their Lordships to shower their choicest Blessings upon them & their families, for their wonderful service.",
-    "",
     "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra !!!",
-  ].join("\n");
+  );
+  const mangalAarti = mangalBlocks.join("\n\n");
 
   return { lunch, mangalAarti };
 }

@@ -80,24 +80,28 @@ describe("buildSevaAnnouncements", () => {
     expect(mangalAarti).toContain("Hare Krishna Mahamantra !!!");
   });
 
-  it("keeps the placeholder dashes when a seva has no donor", () => {
+  it("omits seva sentences when that seva has no donor", () => {
     const { lunch, mangalAarti } = buildSevaAnnouncements(
       [{ id: "nitya", entries: [] }],
       "01st November 2026",
     );
-    expect(lunch).toContain("is contributed by --\n—");
-    expect(lunch).toContain("following devotees…\n• —");
-    expect(lunch).toContain("Today’s Lunch Prasad is contributed by\n• —");
-    expect(mangalAarti).toContain("following devotees…\n\n• —");
+    expect(lunch).not.toContain("Today’s Nitya Seva");
+    expect(lunch).not.toContain("Today’s Bhagvad Seva");
+    expect(lunch).not.toContain("Today’s Priti Bhoj Seva");
+    expect(lunch).not.toContain("Today’s Lunch Prasad");
+    expect(mangalAarti).not.toContain("Today’s Nitya Seva");
+    expect(mangalAarti).not.toContain("Today’s Bhagvat Seva");
+    expect(mangalAarti).not.toContain("Today’s Priti Bhoj Seva");
+    expect(lunch).toContain("Hare Krishna Mahamantra");
+    expect(mangalAarti).toContain("Hare Krishna Mahamantra !!!");
   });
 
   it("ignores blank names and services that are not part of these formats", () => {
     const { lunch, mangalAarti } = buildSevaAnnouncements(sections, "01st November 2026");
     expect(lunch).not.toContain("Dinner Donor");
     expect(mangalAarti).not.toContain("Dinner Donor");
-    expect(buildSevaAnnouncements([{ id: "lunch", entries: [{ name: "  " }] }], "").lunch).toContain(
-      "Today’s Lunch Prasad is contributed by\n• —",
-    );
+    expect(buildSevaAnnouncements([{ id: "lunch", entries: [{ name: "  " }] }], "").lunch)
+      .not.toContain("Today’s Lunch Prasad is contributed by");
   });
 
   it("falls back to the user's own heading when the date is not parseable", () => {

@@ -43,9 +43,9 @@
 .seva-doc-section { margin:0 0 24px; }
 .seva-doc-section h2 { margin:0; color:#7a3b12; font-size:clamp(15px, 1.7vw, 21px); letter-spacing:.02em; }
 .seva-doc-section h2:after { content:""; display:block; width:52px; margin:6px auto; border-top:2px solid #c99a63; }
-.seva-donors { display:flex; flex-wrap:wrap; }
+.seva-donors { display:flex; flex-wrap:wrap; column-gap:24px; }
 .seva-donor { flex:0 0 100%; padding:10px 0; min-width:0; }
-.seva-donor.half { flex-basis:50%; }
+.seva-donor.half { flex-basis:calc(50% - 12px); }
 .seva-donor-name { font-family:"Algerian","Nyala",Georgia,serif; font-weight:700; text-transform:uppercase; line-height:1.08; white-space:nowrap; overflow:hidden; }
 .seva-donor-note { margin-top:6px; color:#5a4328; font-size:15px; font-style:italic; text-align:center; }
 .seva-blessing { margin-top:28px; padding-top:18px; border-top:1px solid #c99a63; line-height:1.55; font-style:italic; }

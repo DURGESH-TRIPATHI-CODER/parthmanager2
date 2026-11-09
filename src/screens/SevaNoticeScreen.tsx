@@ -420,11 +420,11 @@ export function SevaNoticeScreen() {
               <path d="M6 14h12v7H6z" />
             </svg>
           </button>
-          <span className="seva-tab-hint">
-            {saveNote ?? (tab === "list"
-              ? "Download saves the seva list as an editable Word document; Print opens the A4 landscape page."
-              : "Written automatically from the donor names on the left; Download saves it as an editable Word document.")}
-          </span>
+          {(saveNote || tab !== "list") && (
+            <span className="seva-tab-hint">
+              {saveNote ?? "Written automatically from the donor names on the left; Download saves it as an editable Word document."}
+            </span>
+          )}
         </div>
       </div>
     </div>
