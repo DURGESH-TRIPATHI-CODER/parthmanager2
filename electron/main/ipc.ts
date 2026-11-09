@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, ipcMain, dialog, BrowserWindow } from "electron";
+import { app, ipcMain, dialog, BrowserWindow, shell } from "electron";
 import type {
   DiscoveryResult,
   FileInfo,
@@ -63,6 +63,32 @@ function errMessage(err: unknown): string {
   return msg.length > 300 ? `${msg.slice(0, 300)}…` : msg;
 }
 
+/** Word locks an open document on Windows. If the chosen name is locked,
+ * preserve it and save the new document under the next available numbered
+ * name, matching normal download behaviour. */
+async function writeDocx(filePath: string, contents: Buffer): Promise<string> {
+  try {
+    await fs.promises.writeFile(filePath, contents);
+    return filePath;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code !== "EBUSY" && code !== "EPERM") throw error;
+  }
+
+  const parsed = path.parse(filePath);
+  for (let copy = 1; copy <= 999; copy += 1) {
+    const candidate = path.join(parsed.dir, `${parsed.name} (${copy})${parsed.ext}`);
+    try {
+      await fs.promises.writeFile(candidate, contents, { flag: "wx" });
+      return candidate;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code !== "EEXIST" && code !== "EBUSY" && code !== "EPERM") throw error;
+    }
+  }
+  throw new Error("Could not find an available filename for the Word document.");
+}
+
 function requireRoot(settings: SettingsStore): string {
   const root = settings.settings.rootFolder;
   if (!root) throw new Error("ParthSeva folder is not configured.");
@@ -120,8 +146,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       footer: req.footer === undefined ? undefined : String(req.footer),
       sections,
     });
-    await fs.promises.writeFile(result.filePath, docx);
-    return { canceled: false, filePath: result.filePath };
+    const savedPath = await writeDocx(result.filePath, docx);
+    let openError: string | undefined;
+    try {
+      openError = (await shell.openPath(savedPath)) || undefined;
+    } catch (error) {
+      openError = errMessage(error);
+    }
+    return { canceled: false, filePath: savedPath, openError };
   });
 
   ipcMain.handle(IPC.senderGetState, () => deps.sender.getState());

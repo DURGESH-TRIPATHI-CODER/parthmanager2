@@ -4,8 +4,8 @@ import type { SevaDocxRequest } from "../shared/types";
 /**
  * Writes an editable Word document for the seva list or an announcement.
  *
- * The page is A4 landscape to match what the screen shows. Sizes are converted
- * from the editor's pixel values to Word's half-points (px × 0.75 pt × 2).
+ * The page is A4 landscape to match what the screen shows. The editor uses
+ * points, while Word stores font sizes as half-points (pt × 2).
  */
 
 const HEADING_BROWN = "7A3B12";
@@ -17,8 +17,8 @@ const A4_LANDSCAPE = {
   height: 11906,
 };
 
-function halfPoints(pixels: number): number {
-  return Math.max(8, Math.round(pixels * 1.5));
+function halfPoints(points: number): number {
+  return Math.max(8, Math.round(points * 2));
 }
 
 export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {

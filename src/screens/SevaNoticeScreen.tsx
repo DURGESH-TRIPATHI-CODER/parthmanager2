@@ -84,11 +84,11 @@ function FittedName({ text, max }: { text: string; max: number }) {
       let high = Math.max(max, low + 1);
       for (let step = 0; step < 10; step += 1) {
         const mid = (low + high) / 2;
-        element.style.fontSize = `${mid}px`;
+        element.style.fontSize = `${mid}pt`;
         if (element.scrollWidth <= width) low = mid;
         else high = mid;
       }
-      element.style.fontSize = `${Math.floor(low)}px`;
+      element.style.fontSize = `${Math.floor(low)}pt`;
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -162,7 +162,11 @@ export function SevaNoticeScreen() {
     try {
       if (bridge?.sevaSaveDocx) {
         const saved = await bridge.sevaSaveDocx(request);
-        setSaveNote(saved.canceled ? null : `Saved to ${saved.filePath}`);
+        setSaveNote(saved.canceled
+          ? null
+          : saved.openError
+            ? `Saved to ${saved.filePath}, but it could not be opened automatically: ${saved.openError}`
+            : `Saved and opened ${saved.filePath}`);
         return;
       }
       const fallback = tab === "list" ? `${date}\n\n${footer}` : activeText;
@@ -265,7 +269,7 @@ export function SevaNoticeScreen() {
               onChange={(e) => updateGlobalNameSize(Number(e.target.value))}
             />
             <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => updateGlobalNameSize(globalNameSize + NAME_SIZE_STEP)} style={{ flex: 0, marginLeft: 4 }}>+</button>
-            <span className="seva-size-unit">px</span>
+            <span className="seva-size-unit">pt</span>
           </div>
         </div>
         {sections.map((section) => (
@@ -296,7 +300,7 @@ export function SevaNoticeScreen() {
                     onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
                   />
                   <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + NAME_SIZE_STEP) })}>+</button>
-                  <span className="seva-size-unit">px</span>
+                  <span className="seva-size-unit">pt</span>
                 </div>
                 <label className="seva-check">
                   <input type="checkbox" checked={entry.sideBySide} onChange={(e) => patchEntry(section.id, entry.id, { sideBySide: e.target.checked })} /> Place side-by-side (two columns)

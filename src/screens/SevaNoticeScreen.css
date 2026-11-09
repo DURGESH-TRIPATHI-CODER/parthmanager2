@@ -6,7 +6,7 @@
 .seva-topbar span { font-size:12px; color:#c0c5ce; }
 .seva-topbar .btn { margin-left:auto; }
 .seva-workspace { display:grid; grid-template-columns:minmax(280px, 340px) minmax(0, 1fr); gap:16px; align-items:start; }
-.seva-editor { max-height:calc(100vh - 150px); overflow:auto; padding:2px 5px 24px 0; }
+.seva-editor { max-height:none; overflow:visible; padding:2px 5px 24px 0; }
 .seva-field-card,.seva-section,.seva-footer-editor { display:flex; flex-direction:column; gap:12px; padding:14px; margin-bottom:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
 .seva-field-card label,.seva-entry label,.seva-footer-editor { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-soft); font-weight:600; }
 .seva-field-card input:not([type=range]):not([type=color]),.seva-entry input:not([type=checkbox]):not([type=range]),.seva-footer-editor textarea { width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font:inherit; color:var(--text); background:var(--bg); }

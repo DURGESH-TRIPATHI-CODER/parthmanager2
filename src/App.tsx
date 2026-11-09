@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { DiscoveryResult, Settings, TemplateVarChip } from "@shared/types";
 import { ThemeSwitch } from "@/components/arc/theme-switch/theme-switch";
 import type { Theme } from "@/components/arc/theme-switch/theme-switch";
-import { SetupScreen } from "./screens/SetupScreen";
 import { Dashboard } from "./screens/Dashboard";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplatesScreen } from "./screens/TemplatesScreen";
@@ -95,27 +94,14 @@ export default function App() {
   if (!loaded) return <div className="center-note">Loading…</div>;
   if (!settings) return <div className="center-note">Could not load settings.</div>;
 
-  if (!settings.rootFolder) {
-    return (
-      <>
-        <div className="theme-corner">
-          <ThemeSwitch
-            theme={theme}
-            iconOnly
-            onThemeChange={(next) => setTheme(next)}
-          />
-        </div>
-        <SetupScreen onDone={(f) => setSettings({ rootFolder: f })} />
-      </>
-    );
-  }
-
   return (
     <div className="shell">
+      <div className="theme-corner">
+        <ThemeSwitch theme={theme} iconOnly onThemeChange={(next) => setTheme(next)} />
+      </div>
       <nav className="sidebar">
         <div className="brand">ParthSeva Manager</div>
         <ParthSenderPanel />
-        <ThemeSwitch theme={theme} iconOnly onThemeChange={(next) => setTheme(next)} />
         <button className={"nav-btn" + (screen === "dashboard" ? " active" : "")} onClick={() => setScreen("dashboard")}>Dashboard</button>
         <details className="nav-group" open={birthdayMenuOpen} onToggle={(event) => setBirthdayMenuOpen(event.currentTarget.open)}>
           <summary className={"nav-btn nav-group-summary" + (birthdayFlowActive ? " active" : "")}>Birthday Sending</summary>

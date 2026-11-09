@@ -106,7 +106,7 @@ const api = {
   downloadParthSenderExtension: (): Promise<{ canceled: boolean; filePath?: string }> =>
     ipcRenderer.invoke(IPC.downloadParthSenderExtension),
 
-  sevaSaveDocx: (req: SevaDocxRequest): Promise<{ canceled: boolean; filePath?: string }> =>
+  sevaSaveDocx: (req: SevaDocxRequest): Promise<{ canceled: boolean; filePath?: string; openError?: string }> =>
     ipcRenderer.invoke(IPC.sevaSaveDocx, req),
   onSenderEvent: (callback: (event: { type: string; payload: unknown }) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload as { type: string; payload: unknown });

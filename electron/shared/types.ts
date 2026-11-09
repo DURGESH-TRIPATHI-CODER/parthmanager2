@@ -245,7 +245,7 @@ export const IPC = {
 export interface SevaDocxEntry {
   name: string;
   note?: string;
-  /** Name size in pixels, as set in the editor. */
+  /** Name size in points, matching the value shown by Word. */
   size?: number;
 }
 

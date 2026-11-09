@@ -30,6 +30,7 @@ export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, o
   };
 
   const fileStatus = () => {
+    if (!settings.rootFolder) return <span className="status-pill warn">Not configured</span>;
     if (error) return <span className="status-pill error">Error</span>;
     if (!discovery) return <span className="status-pill">Checking…</span>;
     if (discovery.error) return <span className="status-pill error">Folder problem</span>;
@@ -77,8 +78,8 @@ export function Dashboard({ settings, discovery, error, onRefresh, onOpenFile, o
 
         <div className="card">
           <div className="card-label">ParthSeva folder</div>
-          <div className="card-value small mono">{settings.rootFolder}</div>
-          <button className="btn link" onClick={onOpenSettings}>Change</button>
+          <div className="card-value small mono">{settings.rootFolder || "Not configured"}</div>
+          <button className="btn link" onClick={onOpenSettings}>{settings.rootFolder ? "Change" : "Configure (optional)"}</button>
         </div>
 
         <div className="card wide">
