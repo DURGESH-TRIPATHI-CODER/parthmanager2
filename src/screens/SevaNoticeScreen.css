@@ -36,12 +36,23 @@
 .seva-add-select { width:100%; box-sizing:border-box; padding:9px 10px; border:1px solid var(--border); border-radius:7px; background:var(--bg); color:var(--text); font:inherit; cursor:pointer; }
 .seva-add-select:disabled { cursor:not-allowed; opacity:.6; }
 .seva-preview-area { min-height:calc(100vh - 240px); padding:14px; background:#e7ded0; border-radius:10px; overflow:auto; }
+.seva-canvas-tip { width:max-content; max-width:100%; box-sizing:border-box; margin:0 auto 12px; padding:7px 11px; border:1px solid #c9b89f; border-radius:999px; background:#fffaf2; color:#684f35; font-size:12px; line-height:1.35; text-align:center; }
 .seva-paper { box-sizing:border-box; width:100%; max-width:1000px; min-height:clamp(320px, 52vh, 560px); margin:0 auto; padding:12mm 14mm; border:1px solid #e4cda2; box-shadow:0 10px 30px #50321426; color:#3a2a1a; text-align:center; font-family:Georgia,"Times New Roman",serif; }
-.seva-paper>h1 { margin:0; color:#7a3b12; font-size:clamp(19px, 2.4vw, 31px); }
+.seva-canvas-text { position:relative; display:table; width:max-content; max-width:100%; margin-right:auto; margin-left:auto; cursor:pointer; border-radius:2px; }
+.seva-canvas-text.selected { outline:2px solid #7c5cff; outline-offset:5px; }
+.seva-canvas-text:focus-visible { outline:2px solid #7c5cff; outline-offset:5px; }
+.seva-canvas-text h1,.seva-canvas-text h2 { overflow-wrap:anywhere; }
+.seva-date-text h1 { margin:0; color:#7a3b12; line-height:1.15; }
+.seva-text-size-badge { position:absolute; z-index:3; top:-35px; left:50%; transform:translateX(-50%); padding:3px 7px; border-radius:4px; background:#6246dc; color:#fff; font-family:system-ui,sans-serif; font-size:10px; font-weight:700; line-height:1.2; white-space:nowrap; pointer-events:none; }
+.seva-resize-handle { position:absolute; z-index:4; width:10px; height:10px; box-sizing:border-box; border:2px solid #fff; border-radius:50%; background:#6246dc; box-shadow:0 0 0 1px #6246dc; touch-action:none; user-select:none; }
+.seva-resize-handle[data-corner="nw"] { top:-10px; left:-10px; cursor:nwse-resize; }
+.seva-resize-handle[data-corner="ne"] { top:-10px; right:-10px; cursor:nesw-resize; }
+.seva-resize-handle[data-corner="sw"] { bottom:-10px; left:-10px; cursor:nesw-resize; }
+.seva-resize-handle[data-corner="se"] { right:-10px; bottom:-10px; cursor:nwse-resize; }
 .seva-ornament { display:flex; align-items:center; justify-content:center; gap:12px; margin:14px auto 28px; max-width:300px; color:#c99a63; }
 .seva-ornament span { flex:1; border-top:1px solid #c99a63; }
 .seva-doc-section { margin:0 0 24px; }
-.seva-doc-section h2 { margin:0; color:#7a3b12; font-size:clamp(15px, 1.7vw, 21px); letter-spacing:.02em; }
+.seva-doc-section h2 { margin:0; color:#7a3b12; line-height:1.2; letter-spacing:.02em; }
 .seva-doc-section h2:after { content:""; display:block; width:52px; margin:6px auto; border-top:2px solid #c99a63; }
 .seva-donors { display:flex; flex-wrap:wrap; column-gap:24px; }
 .seva-donor { flex:0 0 100%; padding:10px 0; min-width:0; }
@@ -50,6 +61,7 @@
 .seva-donor-note { margin-top:6px; color:#5a4328; font-size:15px; font-style:italic; text-align:center; }
 .seva-blessing { margin-top:28px; padding-top:18px; border-top:1px solid #c99a63; line-height:1.55; font-style:italic; }
 :root[data-theme="dark"] .seva-preview-area { background:#29251f; }
+:root[data-theme="dark"] .seva-canvas-tip { border-color:#6f6251; background:#332e27; color:#eadbc8; }
 :root[data-theme="dark"] .seva-paper { border-color:#a98758; }
 .seva-preview-column { display:flex; flex-direction:column; gap:10px; min-width:0; }
 .seva-tabs { display:flex; gap:4px; padding:5px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
@@ -75,6 +87,8 @@
   .seva-printable,.seva-printable * { visibility:visible !important; }
   .seva-printable { position:absolute; inset:0; overflow:visible; padding:0; border:0; background:#fff; }
   .seva-paper { box-sizing:border-box; width:100%; max-width:none; min-height:0 !important; border:0; box-shadow:none; padding:0; }
+  .seva-canvas-tip,.seva-text-size-badge,.seva-resize-handle { display:none !important; }
+  .seva-canvas-text,.seva-canvas-text.selected,.seva-canvas-text:focus-visible { outline:0 !important; }
   .seva-tab-panel-head { display:none; }
   .seva-announcement-text { max-height:none; overflow:visible; font-size:13px; }
 }

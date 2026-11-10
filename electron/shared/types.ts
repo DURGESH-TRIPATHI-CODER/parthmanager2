@@ -251,6 +251,8 @@ export interface SevaDocxEntry {
 
 export interface SevaDocxSection {
   heading: string;
+  /** Section heading size in points. */
+  headingSize?: number;
   entries: SevaDocxEntry[];
 }
 
@@ -259,6 +261,8 @@ export interface SevaDocxRequest {
   defaultName: string;
   /** Large centred heading, e.g. the notice date. */
   date?: string;
+  /** Date heading size in points. */
+  dateSize?: number;
   sections?: SevaDocxSection[];
   /** Plain announcement text; one paragraph per line. */
   text?: string;

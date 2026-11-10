@@ -120,6 +120,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (req.text && req.text.length > 1_000_000) throw new Error("Document text is too long.");
     const sections = (req.sections ?? []).map((section) => ({
       heading: String(section?.heading ?? ""),
+      headingSize: Number.isFinite(section?.headingSize) ? Number(section.headingSize) : undefined,
       entries: (Array.isArray(section?.entries) ? section.entries : []).map((entry) => ({
         name: String(entry?.name ?? ""),
         note: entry?.note === undefined ? undefined : String(entry.note),
@@ -142,6 +143,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     const docx = await buildSevaDocx({
       defaultName,
       date: req.date === undefined ? undefined : String(req.date),
+      dateSize: Number.isFinite(req.dateSize) ? Number(req.dateSize) : undefined,
       text: req.text,
       footer: req.footer === undefined ? undefined : String(req.footer),
       sections,

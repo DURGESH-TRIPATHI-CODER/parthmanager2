@@ -30,7 +30,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { after: 120 },
         children: [
-          new TextRun({ text: request.date.trim(), bold: true, font: "Georgia", size: 44, color: HEADING_BROWN }),
+          new TextRun({ text: request.date.trim(), bold: true, font: "Georgia", size: halfPoints(request.dateSize ?? 22), color: HEADING_BROWN }),
         ],
       }),
     );
@@ -53,7 +53,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { before: 260, after: 120 },
         children: [
-          new TextRun({ text: section.heading, bold: true, font: "Georgia", size: 26, color: HEADING_BROWN }),
+          new TextRun({ text: section.heading, bold: true, font: "Georgia", size: halfPoints(section.headingSize ?? 13), color: HEADING_BROWN }),
         ],
       }),
     );

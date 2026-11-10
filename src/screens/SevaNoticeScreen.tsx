@@ -14,11 +14,24 @@ const MIN_NAME_SIZE = 8;
 const MAX_NAME_SIZE = 400;
 const DEFAULT_NAME_SIZE = 72;
 const NAME_SIZE_STEP = 4;
+const MIN_CANVAS_TEXT_SIZE = 8;
+const MAX_CANVAS_TEXT_SIZE = 160;
+const DEFAULT_DATE_SIZE = 22;
+const DEFAULT_SECTION_HEADING_SIZE = 15;
+
+type ResizeCorner = "nw" | "ne" | "sw" | "se";
 
 /** Keeps a typed or clicked size inside the supported range. */
 function clampSize(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_NAME_SIZE;
   return Math.min(MAX_NAME_SIZE, Math.max(MIN_NAME_SIZE, Math.round(value)));
+}
+
+/** Text resized from the preview uses half-point steps, matching Word's units. */
+function clampCanvasTextSize(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SECTION_HEADING_SIZE;
+  const clamped = Math.min(MAX_CANVAS_TEXT_SIZE, Math.max(MIN_CANVAS_TEXT_SIZE, value));
+  return Math.round(clamped * 2) / 2;
 }
 
 const defaultFooter = "May Their Lordships Sri Sri Radha Gopinath bestow Their infinite mercy and choicest blessings upon all the sponsors, their families, and all living beings. Hare Krishna.";
@@ -115,6 +128,116 @@ function FittedName({ text, max }: { text: string; max: number }) {
   return <div className="seva-donor-name" ref={ref}>{text || " "}</div>;
 }
 
+interface ResizableTextProps {
+  as: "h1" | "h2";
+  children: React.ReactNode;
+  className: string;
+  label: string;
+  selected: boolean;
+  size: number;
+  onSelect: () => void;
+  onResize: (size: number) => void;
+}
+
+/** A canvas-like text element. Selecting it reveals four corner dots; dragging
+ * any dot toward or away from the opposite corner scales the font.
+ */
+function ResizableText({ as, children, className, label, selected, size, onSelect, onResize }: ResizableTextProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<{
+    pointerId: number;
+    oppositeX: number;
+    oppositeY: number;
+    startDistance: number;
+    startSize: number;
+  } | null>(null);
+  const Tag = as;
+  const corners: ResizeCorner[] = ["nw", "ne", "sw", "se"];
+
+  const beginResize = (corner: ResizeCorner, event: React.PointerEvent<HTMLSpanElement>) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    const root = rootRef.current;
+    if (!root) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect();
+    const box = root.getBoundingClientRect();
+    const oppositeX = corner.includes("w") ? box.right : box.left;
+    const oppositeY = corner.includes("n") ? box.bottom : box.top;
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      oppositeX,
+      oppositeY,
+      startDistance: Math.max(1, Math.hypot(event.clientX - oppositeX, event.clientY - oppositeY)),
+      startSize: size,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const continueResize = (event: React.PointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const distance = Math.hypot(event.clientX - resize.oppositeX, event.clientY - resize.oppositeY);
+    onResize(clampCanvasTextSize(resize.startSize * distance / resize.startDistance));
+  };
+
+  const finishResize = (event: React.PointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+      return;
+    }
+    const direction = event.key === "ArrowUp" || event.key === "ArrowRight"
+      ? 1
+      : event.key === "ArrowDown" || event.key === "ArrowLeft"
+        ? -1
+        : 0;
+    if (!direction) return;
+    event.preventDefault();
+    onSelect();
+    onResize(clampCanvasTextSize(size + direction));
+  };
+
+  const sizeLabel = Number.isInteger(size) ? size.toFixed(0) : size.toFixed(1);
+  return <div
+    ref={rootRef}
+    className={`seva-canvas-text ${className}${selected ? " selected" : ""}`}
+    role="button"
+    tabIndex={0}
+    aria-label={`${label}. ${sizeLabel} points. Click to select, then drag a corner dot to resize.`}
+    aria-pressed={selected}
+    onFocus={onSelect}
+    onKeyDown={resizeWithKeyboard}
+    onPointerDown={(event) => { event.stopPropagation(); onSelect(); }}
+  >
+    <Tag style={{ fontSize: `${size}pt` }}>{children}</Tag>
+    {selected && <>
+      <span className="seva-text-size-badge" aria-hidden="true">{sizeLabel} pt</span>
+      {corners.map((corner) => <span
+        key={corner}
+        className="seva-resize-handle"
+        data-corner={corner}
+        aria-hidden="true"
+        onPointerDown={(event) => beginResize(corner, event)}
+        onPointerMove={continueResize}
+        onPointerUp={finishResize}
+        onPointerCancel={finishResize}
+        onLostPointerCapture={finishResize}
+      />)}
+    </>}
+  </div>;
+}
+
 /** The default date heading, taken from the system clock: the notice is prepared
  * a day ahead, so it starts on tomorrow's date. Month is always spelled out,
  * e.g. "02nd November 2026". The heading stays editable in the field above.
@@ -131,8 +254,10 @@ function systemHeading(dayOffset: number): string {
 
 export function SevaNoticeScreen() {
   const [sections, setSections] = useState(initialSections);
-  const [globalNameSize, setGlobalNameSize] = useState(DEFAULT_NAME_SIZE);
   const [date, setDate] = useState(() => systemHeading(1));
+  const [dateSize, setDateSize] = useState(DEFAULT_DATE_SIZE);
+  const [headingSizes, setHeadingSizes] = useState<Record<string, number>>({});
+  const [selectedText, setSelectedText] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [footer, setFooter] = useState(defaultFooter);
@@ -160,6 +285,7 @@ export function SevaNoticeScreen() {
   const docxSections = sections
     .map((section) => ({
       heading: `Today’s ${section.title} contributed by`,
+      headingSize: headingSizes[section.id] ?? DEFAULT_SECTION_HEADING_SIZE,
       entries: section.entries
         .filter((entry) => entry.name.trim() || entry.note.trim())
         .map((entry) => ({
@@ -174,7 +300,7 @@ export function SevaNoticeScreen() {
     const bridge = window.parthseva;
     const name = fileSafe(fileName) || activeLabel;
     const request = tab === "list"
-      ? { defaultName: name, date, sections: docxSections, footer }
+      ? { defaultName: name, date, dateSize, sections: docxSections, footer }
       : { defaultName: name, text: activeText };
     try {
       if (bridge?.sevaSaveDocx) {
@@ -215,20 +341,6 @@ export function SevaNoticeScreen() {
     window.setTimeout(() => setCopied((current) => (current === key ? null : current)), 1500);
   };
 
-  const updateGlobalNameSize = (value: number) => {
-    const nextSize = clampSize(value);
-    const delta = nextSize - globalNameSize;
-    setGlobalNameSize(nextSize);
-    if (delta === 0) return;
-    setSections((all) => all.map((section) => ({
-      ...section,
-      entries: section.entries.map((entry) => ({
-        ...entry,
-        size: clampSize(entry.size + delta),
-      })),
-    })));
-  };
-
   const addSeva = (title: string) => {
     if (!title) return;
     setSections((all) => all.some((section) => section.title === title)
@@ -242,7 +354,7 @@ export function SevaNoticeScreen() {
   }));
   const addEntry = (sectionId: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
     ...section,
-    entries: [...section.entries, { id: crypto.randomUUID(), name: "", note: "", size: globalNameSize, sideBySide: false }],
+    entries: [...section.entries, { id: crypto.randomUUID(), name: "", note: "", size: DEFAULT_NAME_SIZE, sideBySide: false }],
   }));
   const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
     ...section,
@@ -288,20 +400,6 @@ export function SevaNoticeScreen() {
         <div className="seva-field-card">
           <label>Date heading<input value={date} onChange={(e) => setDate(e.target.value)} placeholder="e.g. 01st October 2026" /></label>
           <label>Sheet background<input className="seva-color" type="color" value={paper} onChange={(e) => setPaper(e.target.value)} /></label>
-          <div className="seva-size-row" style={{ marginTop: "8px" }}>
-            <span className="seva-size-label">Global name size</span>
-            <button type="button" className="seva-step" aria-label="Decrease global name size" onClick={() => updateGlobalNameSize(globalNameSize - NAME_SIZE_STEP)} style={{ flex: 0, marginRight: 4 }}>−</button>
-            <input
-              className="seva-size-input"
-              type="number"
-              min={MIN_NAME_SIZE}
-              max={MAX_NAME_SIZE}
-              value={globalNameSize}
-              onChange={(e) => updateGlobalNameSize(Number(e.target.value))}
-            />
-            <button type="button" className="seva-step" aria-label="Increase global name size" onClick={() => updateGlobalNameSize(globalNameSize + NAME_SIZE_STEP)} style={{ flex: 0, marginLeft: 4 }}>+</button>
-            <span className="seva-size-unit">pt</span>
-          </div>
           <label className="seva-add-select-label">
             Add Seva
             <select
@@ -363,19 +461,44 @@ export function SevaNoticeScreen() {
               role="tab"
               aria-selected={tab === item.key}
               className={"seva-tab" + (tab === item.key ? " active" : "")}
-              onClick={() => { setTab(item.key); setSaveNote(null); }}
+              onClick={() => { setTab(item.key); setSelectedText(null); setSaveNote(null); }}
             >
               {item.label}
             </button>
           ))}
         </div>
         {tab === "list" ? (
-          <div className="seva-preview-area seva-printable" aria-label="Live notice preview">
-            <article className="seva-paper" ref={paperRef} style={{ backgroundColor: paper }}>
-              <h1>{date || " "}</h1><div className="seva-ornament"><span />✧<span /></div>
+          <div className="seva-preview-area seva-printable" aria-label="Live notice preview" onPointerDown={() => setSelectedText(null)}>
+            <p className="seva-canvas-tip">Select the date or a “Today’s…” heading, then drag a corner dot to resize it.</p>
+            <article className="seva-paper" ref={paperRef} style={{ backgroundColor: paper }} onPointerDown={() => setSelectedText(null)}>
+              <ResizableText
+                as="h1"
+                className="seva-date-text"
+                label="Date heading"
+                selected={selectedText === "date"}
+                size={dateSize}
+                onSelect={() => setSelectedText("date")}
+                onResize={(size) => setDateSize(clampCanvasTextSize(size))}
+              >
+                {date || " "}
+              </ResizableText>
+              <div className="seva-ornament"><span />✧<span /></div>
               {sections.map((section) => {
                 const entries = section.entries.filter((entry) => entry.name.trim() || entry.note.trim());
-                return entries.length ? <section className="seva-doc-section" key={section.id}><h2>Today’s {section.title} contributed by</h2><div className="seva-donors">
+                const selectionKey = `heading:${section.id}`;
+                return entries.length ? <section className="seva-doc-section" key={section.id}>
+                  <ResizableText
+                    as="h2"
+                    className="seva-section-heading"
+                    label={`${section.title} heading`}
+                    selected={selectedText === selectionKey}
+                    size={headingSizes[section.id] ?? DEFAULT_SECTION_HEADING_SIZE}
+                    onSelect={() => setSelectedText(selectionKey)}
+                    onResize={(size) => setHeadingSizes((current) => ({ ...current, [section.id]: clampCanvasTextSize(size) }))}
+                  >
+                    Today’s {section.title} contributed by
+                  </ResizableText>
+                  <div className="seva-donors">
                   {entries.map((entry) => <div key={entry.id} className={entry.sideBySide ? "seva-donor half" : "seva-donor"}>
                     <FittedName text={entry.name} max={entry.size} />{entry.note.trim() && <div className="seva-donor-note">{entry.note}</div>}
                   </div>)}
