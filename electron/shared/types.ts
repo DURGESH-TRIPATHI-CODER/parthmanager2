@@ -247,6 +247,8 @@ export interface SevaDocxEntry {
   note?: string;
   /** Name size in points, matching the value shown by Word. */
   size?: number;
+  /** Dedication/note size in points. */
+  noteSize?: number;
 }
 
 export interface SevaDocxSection {
@@ -267,6 +269,8 @@ export interface SevaDocxRequest {
   /** Plain announcement text; one paragraph per line. */
   text?: string;
   footer?: string;
+  /** Closing blessing size in points. */
+  footerSize?: number;
 }
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

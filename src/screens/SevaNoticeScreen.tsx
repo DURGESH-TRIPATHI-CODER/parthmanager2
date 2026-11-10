@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { buildSevaAnnouncements, formatSevaDate, parseNoticeDate } from "@shared/sevaAnnouncement";
 import "./SevaNoticeScreen.css";
 
-interface Sponsor { id: string; name: string; note: string; size: number; sideBySide: boolean }
+interface Sponsor { id: string; name: string; note: string; size: number; noteSize: number; autoFitName: boolean; sideBySide: boolean }
 interface SponsorSection { id: string; title: string; entries: Sponsor[] }
 type NoticeTab = "list" | "mangal" | "lunch";
 const TABS: Array<{ key: NoticeTab; label: string }> = [
@@ -18,6 +18,8 @@ const MIN_CANVAS_TEXT_SIZE = 8;
 const MAX_CANVAS_TEXT_SIZE = 160;
 const DEFAULT_DATE_SIZE = 22;
 const DEFAULT_SECTION_HEADING_SIZE = 15;
+const DEFAULT_NOTE_SIZE = 11;
+const DEFAULT_FOOTER_SIZE = 11;
 
 type ResizeCorner = "nw" | "ne" | "sw" | "se";
 
@@ -100,41 +102,16 @@ function useA4Landscape(ref: React.RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
-/** A donor name, scaled up so it fills the width of the paper. */
-function FittedName({ text, max }: { text: string; max: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const fit = () => {
-      const width = element.parentElement?.clientWidth ?? 0;
-      if (width <= 0) return;
-      let low = 14;
-      let high = Math.max(max, low + 1);
-      for (let step = 0; step < 10; step += 1) {
-        const mid = (low + high) / 2;
-        element.style.fontSize = `${mid}pt`;
-        if (element.scrollWidth <= width) low = mid;
-        else high = mid;
-      }
-      element.style.fontSize = `${Math.floor(low)}pt`;
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    if (element.parentElement) observer.observe(element.parentElement);
-    void document.fonts?.ready.then(fit);
-    return () => observer.disconnect();
-  }, [text, max]);
-  return <div className="seva-donor-name" ref={ref}>{text || " "}</div>;
-}
-
 interface ResizableTextProps {
-  as: "h1" | "h2";
+  as: "h1" | "h2" | "div" | "p";
   children: React.ReactNode;
   className: string;
+  textClassName?: string;
   label: string;
   selected: boolean;
   size: number;
+  fitToWidth?: boolean;
+  onDisableFit?: () => void;
   onSelect: () => void;
   onResize: (size: number) => void;
 }
@@ -142,7 +119,19 @@ interface ResizableTextProps {
 /** A canvas-like text element. Selecting it reveals four corner dots; dragging
  * any dot toward or away from the opposite corner scales the font.
  */
-function ResizableText({ as, children, className, label, selected, size, onSelect, onResize }: ResizableTextProps) {
+function ResizableText({
+  as,
+  children,
+  className,
+  textClassName,
+  label,
+  selected,
+  size,
+  fitToWidth = false,
+  onDisableFit,
+  onSelect,
+  onResize,
+}: ResizableTextProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{
     pointerId: number;
@@ -154,6 +143,36 @@ function ResizableText({ as, children, className, label, selected, size, onSelec
   const Tag = as;
   const corners: ResizeCorner[] = ["nw", "ne", "sw", "se"];
 
+  // Donor names keep their original single-line, fit-to-column behaviour. The
+  // dragged size is the preferred maximum and is reduced only when necessary.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const element = root?.querySelector<HTMLElement>(":scope > [data-seva-resizable-content]");
+    if (!root || !element) return;
+    if (!fitToWidth) {
+      element.style.fontSize = `${size}pt`;
+      return;
+    }
+    const fit = () => {
+      const width = root.clientWidth;
+      if (width <= 0) return;
+      let low = Math.min(MIN_NAME_SIZE, size);
+      let high = Math.max(size, low);
+      for (let step = 0; step < 10; step += 1) {
+        const mid = (low + high) / 2;
+        element.style.fontSize = `${mid}pt`;
+        if (element.scrollWidth <= width) low = mid;
+        else high = mid;
+      }
+      element.style.fontSize = `${Math.floor(low * 2) / 2}pt`;
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(root);
+    void document.fonts?.ready.then(fit);
+    return () => observer.disconnect();
+  }, [children, fitToWidth, size]);
+
   const beginResize = (corner: ResizeCorner, event: React.PointerEvent<HTMLSpanElement>) => {
     if (!event.isPrimary || event.button !== 0) return;
     const root = rootRef.current;
@@ -164,12 +183,20 @@ function ResizableText({ as, children, className, label, selected, size, onSelec
     const box = root.getBoundingClientRect();
     const oppositeX = corner.includes("w") ? box.right : box.left;
     const oppositeY = corner.includes("n") ? box.bottom : box.top;
+    let startSize = size;
+    if (fitToWidth) {
+      const element = root.querySelector<HTMLElement>(":scope > [data-seva-resizable-content]");
+      const pixels = element ? Number.parseFloat(getComputedStyle(element).fontSize) : Number.NaN;
+      if (Number.isFinite(pixels)) startSize = Math.max(MIN_NAME_SIZE, Math.floor(pixels * 0.75));
+      onDisableFit?.();
+      onResize(startSize);
+    }
     resizeRef.current = {
       pointerId: event.pointerId,
       oppositeX,
       oppositeY,
       startDistance: Math.max(1, Math.hypot(event.clientX - oppositeX, event.clientY - oppositeY)),
-      startSize: size,
+      startSize,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -212,6 +239,7 @@ function ResizableText({ as, children, className, label, selected, size, onSelec
   return <div
     ref={rootRef}
     className={`seva-canvas-text ${className}${selected ? " selected" : ""}`}
+    data-fit-to-width={fitToWidth ? "" : undefined}
     role="button"
     tabIndex={0}
     aria-label={`${label}. ${sizeLabel} points. Click to select, then drag a corner dot to resize.`}
@@ -220,7 +248,7 @@ function ResizableText({ as, children, className, label, selected, size, onSelec
     onKeyDown={resizeWithKeyboard}
     onPointerDown={(event) => { event.stopPropagation(); onSelect(); }}
   >
-    <Tag style={{ fontSize: `${size}pt` }}>{children}</Tag>
+    <Tag className={textClassName} data-seva-resizable-content style={{ fontSize: `${size}pt` }}>{children}</Tag>
     {selected && <>
       <span className="seva-text-size-badge" aria-hidden="true">{sizeLabel} pt</span>
       {corners.map((corner) => <span
@@ -257,6 +285,7 @@ export function SevaNoticeScreen() {
   const [date, setDate] = useState(() => systemHeading(1));
   const [dateSize, setDateSize] = useState(DEFAULT_DATE_SIZE);
   const [headingSizes, setHeadingSizes] = useState<Record<string, number>>({});
+  const [footerSize, setFooterSize] = useState(DEFAULT_FOOTER_SIZE);
   const [selectedText, setSelectedText] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
@@ -292,6 +321,7 @@ export function SevaNoticeScreen() {
           name: entry.name.trim(),
           note: entry.note.trim() || undefined,
           size: entry.size,
+          noteSize: entry.noteSize,
         })),
     }))
     .filter((section) => section.entries.length > 0);
@@ -300,7 +330,7 @@ export function SevaNoticeScreen() {
     const bridge = window.parthseva;
     const name = fileSafe(fileName) || activeLabel;
     const request = tab === "list"
-      ? { defaultName: name, date, dateSize, sections: docxSections, footer }
+      ? { defaultName: name, date, dateSize, sections: docxSections, footer, footerSize }
       : { defaultName: name, text: activeText };
     try {
       if (bridge?.sevaSaveDocx) {
@@ -354,7 +384,7 @@ export function SevaNoticeScreen() {
   }));
   const addEntry = (sectionId: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
     ...section,
-    entries: [...section.entries, { id: crypto.randomUUID(), name: "", note: "", size: DEFAULT_NAME_SIZE, sideBySide: false }],
+    entries: [...section.entries, { id: crypto.randomUUID(), name: "", note: "", size: DEFAULT_NAME_SIZE, noteSize: DEFAULT_NOTE_SIZE, autoFitName: true, sideBySide: false }],
   }));
   const removeEntry = (sectionId: string, id: string) => setSections((all) => all.map((section) => section.id !== sectionId ? section : {
     ...section,
@@ -432,16 +462,16 @@ export function SevaNoticeScreen() {
                 <label>Note or dedication<input value={entry.note} onChange={(e) => patchEntry(section.id, entry.id, { note: e.target.value })} placeholder="In loving memory of…" /></label>
                 <div className="seva-size-row">
                   <span className="seva-size-label">Name size</span>
-                  <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - NAME_SIZE_STEP) })}>−</button>
+                  <button type="button" className="seva-step" aria-label="Decrease name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size - NAME_SIZE_STEP), autoFitName: false })}>−</button>
                   <input
                     className="seva-size-input"
                     type="number"
                     min={MIN_NAME_SIZE}
                     max={MAX_NAME_SIZE}
                     value={entry.size}
-                    onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)) })}
+                    onChange={(e) => patchEntry(section.id, entry.id, { size: clampSize(Number(e.target.value)), autoFitName: false })}
                   />
-                  <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + NAME_SIZE_STEP) })}>+</button>
+                  <button type="button" className="seva-step" aria-label="Increase name size" onClick={() => patchEntry(section.id, entry.id, { size: clampSize(entry.size + NAME_SIZE_STEP), autoFitName: false })}>+</button>
                   <span className="seva-size-unit">pt</span>
                 </div>
                 <label className="seva-check">
@@ -469,7 +499,7 @@ export function SevaNoticeScreen() {
         </div>
         {tab === "list" ? (
           <div className="seva-preview-area seva-printable" aria-label="Live notice preview" onPointerDown={() => setSelectedText(null)}>
-            <p className="seva-canvas-tip">Select the date or a “Today’s…” heading, then drag a corner dot to resize it.</p>
+            <p className="seva-canvas-tip">Select any text on the sheet, then drag a corner dot to resize it.</p>
             <article className="seva-paper" ref={paperRef} style={{ backgroundColor: paper }} onPointerDown={() => setSelectedText(null)}>
               <ResizableText
                 as="h1"
@@ -499,12 +529,52 @@ export function SevaNoticeScreen() {
                     Today’s {section.title} contributed by
                   </ResizableText>
                   <div className="seva-donors">
-                  {entries.map((entry) => <div key={entry.id} className={entry.sideBySide ? "seva-donor half" : "seva-donor"}>
-                    <FittedName text={entry.name} max={entry.size} />{entry.note.trim() && <div className="seva-donor-note">{entry.note}</div>}
-                  </div>)}
+                  {entries.map((entry) => {
+                    const nameKey = `name:${entry.id}`;
+                    const noteKey = `note:${entry.id}`;
+                    return <div key={entry.id} className={entry.sideBySide ? "seva-donor half" : "seva-donor"}>
+                      <ResizableText
+                        as="div"
+                        className="seva-donor-name-text"
+                        textClassName="seva-donor-name"
+                        label={`${entry.name.trim() || "Donor"} name`}
+                        selected={selectedText === nameKey}
+                        size={entry.size}
+                        fitToWidth={entry.autoFitName}
+                        onDisableFit={() => patchEntry(section.id, entry.id, { autoFitName: false })}
+                        onSelect={() => setSelectedText(nameKey)}
+                        onResize={(size) => patchEntry(section.id, entry.id, { size: clampSize(size) })}
+                      >
+                        {entry.name || " "}
+                      </ResizableText>
+                      {entry.note.trim() && <ResizableText
+                        as="div"
+                        className="seva-donor-note-text"
+                        textClassName="seva-donor-note"
+                        label={`${entry.name.trim() || "Donor"} note`}
+                        selected={selectedText === noteKey}
+                        size={entry.noteSize}
+                        onSelect={() => setSelectedText(noteKey)}
+                        onResize={(size) => patchEntry(section.id, entry.id, { noteSize: clampCanvasTextSize(size) })}
+                      >
+                        {entry.note}
+                      </ResizableText>}
+                    </div>;
+                  })}
                 </div></section> : null;
               })}
-              {footer.trim() && <p className="seva-blessing">{footer}</p>}
+              {footer.trim() && <ResizableText
+                as="p"
+                className="seva-blessing-text"
+                textClassName="seva-blessing"
+                label="Closing blessing"
+                selected={selectedText === "footer"}
+                size={footerSize}
+                onSelect={() => setSelectedText("footer")}
+                onResize={(size) => setFooterSize(clampCanvasTextSize(size))}
+              >
+                {footer}
+              </ResizableText>}
             </article>
           </div>
         ) : (

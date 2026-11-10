@@ -78,7 +78,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
             alignment: AlignmentType.CENTER,
             spacing: { after: 140 },
             children: [
-              new TextRun({ text: entry.note.trim(), italics: true, font: "Georgia", size: 22, color: NOTE_BROWN }),
+              new TextRun({ text: entry.note.trim(), italics: true, font: "Georgia", size: halfPoints(entry.noteSize ?? 11), color: NOTE_BROWN }),
             ],
           }),
         );
@@ -92,7 +92,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { before: 320 },
         children: [
-          new TextRun({ text: request.footer.trim(), italics: true, font: "Georgia", size: 22 }),
+          new TextRun({ text: request.footer.trim(), italics: true, font: "Georgia", size: halfPoints(request.footerSize ?? 11) }),
         ],
       }),
     );

@@ -125,6 +125,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         name: String(entry?.name ?? ""),
         note: entry?.note === undefined ? undefined : String(entry.note),
         size: Number.isFinite(entry?.size) ? Number(entry.size) : undefined,
+        noteSize: Number.isFinite(entry?.noteSize) ? Number(entry.noteSize) : undefined,
       })),
     }));
     const defaultName = typeof req.defaultName === "string" && req.defaultName.trim()
@@ -146,6 +147,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       dateSize: Number.isFinite(req.dateSize) ? Number(req.dateSize) : undefined,
       text: req.text,
       footer: req.footer === undefined ? undefined : String(req.footer),
+      footerSize: Number.isFinite(req.footerSize) ? Number(req.footerSize) : undefined,
       sections,
     });
     const savedPath = await writeDocx(result.filePath, docx);
