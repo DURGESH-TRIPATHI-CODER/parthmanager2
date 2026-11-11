@@ -60,6 +60,16 @@ const SEVA_OPTIONS = [
   "Kartik Deepdaan",
 ] as const;
 
+function sevaHeading(title: string): string {
+  return `Today’s ${title} is contributed by following Devotees`;
+}
+
+function parenthesizeNote(note: string): string {
+  const text = note.trim();
+  if (!text) return "";
+  return text.startsWith("(") && text.endsWith(")") ? text : `(${text})`;
+}
+
 /** Opens the print dialog for the panel on screen. Chromium takes the suggested
  * PDF file name from the document title, so it is swapped for the duration of
  * the dialog and restored afterwards.
@@ -313,7 +323,7 @@ export function SevaNoticeScreen() {
   // The Word document carries the same sections, names, notes and sizes as the sheet.
   const docxSections = sections
     .map((section) => ({
-      heading: `Today’s ${section.title} contributed by`,
+      heading: sevaHeading(section.title),
       headingSize: headingSizes[section.id] ?? DEFAULT_SECTION_HEADING_SIZE,
       entries: section.entries
         .filter((entry) => entry.name.trim() || entry.note.trim())
@@ -526,7 +536,7 @@ export function SevaNoticeScreen() {
                     onSelect={() => setSelectedText(selectionKey)}
                     onResize={(size) => setHeadingSizes((current) => ({ ...current, [section.id]: clampCanvasTextSize(size) }))}
                   >
-                    Today’s {section.title} contributed by
+                    {sevaHeading(section.title)}
                   </ResizableText>
                   <div className="seva-donors">
                   {entries.map((entry) => {
@@ -557,7 +567,7 @@ export function SevaNoticeScreen() {
                         onSelect={() => setSelectedText(noteKey)}
                         onResize={(size) => patchEntry(section.id, entry.id, { noteSize: clampCanvasTextSize(size) })}
                       >
-                        {entry.note}
+                        {parenthesizeNote(entry.note)}
                       </ResizableText>}
                     </div>;
                   })}

@@ -1,4 +1,4 @@
-import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
+import { AlignmentType, Document, Packer, Paragraph, TextRun, UnderlineType } from "docx";
 import type { SevaDocxRequest } from "../shared/types";
 
 /**
@@ -10,6 +10,7 @@ import type { SevaDocxRequest } from "../shared/types";
 
 const HEADING_BROWN = "7A3B12";
 const NOTE_BROWN = "5A4328";
+const NOTICE_FONT = "Bell MT";
 
 const A4_LANDSCAPE = {
   orientation: "landscape" as const,
@@ -21,6 +22,11 @@ function halfPoints(points: number): number {
   return Math.max(8, Math.round(points * 2));
 }
 
+function parenthesizeNote(note: string): string {
+  const text = note.trim();
+  return text.startsWith("(") && text.endsWith(")") ? text : `(${text})`;
+}
+
 export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
   const children: Paragraph[] = [];
 
@@ -30,7 +36,14 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { after: 120 },
         children: [
-          new TextRun({ text: request.date.trim(), bold: true, font: "Georgia", size: halfPoints(request.dateSize ?? 22), color: HEADING_BROWN }),
+          new TextRun({
+            text: request.date.trim(),
+            bold: true,
+            underline: { type: UnderlineType.SINGLE },
+            font: NOTICE_FONT,
+            size: halfPoints(request.dateSize ?? 22),
+            color: HEADING_BROWN,
+          }),
         ],
       }),
     );
@@ -41,7 +54,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
       children.push(
         new Paragraph({
           spacing: { after: line.trim() ? 60 : 120 },
-          children: [new TextRun({ text: line, font: "Bell MT", size: 24 })],
+          children: [new TextRun({ text: line, font: NOTICE_FONT, size: 24 })],
         }),
       );
     }
@@ -53,7 +66,14 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { before: 260, after: 120 },
         children: [
-          new TextRun({ text: section.heading, bold: true, font: "Georgia", size: halfPoints(section.headingSize ?? 13), color: HEADING_BROWN }),
+          new TextRun({
+            text: section.heading,
+            bold: true,
+            underline: { type: UnderlineType.SINGLE },
+            font: NOTICE_FONT,
+            size: halfPoints(section.headingSize ?? 13),
+            color: HEADING_BROWN,
+          }),
         ],
       }),
     );
@@ -78,7 +98,13 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
             alignment: AlignmentType.CENTER,
             spacing: { after: 140 },
             children: [
-              new TextRun({ text: entry.note.trim(), italics: true, font: "Georgia", size: halfPoints(entry.noteSize ?? 11), color: NOTE_BROWN }),
+              new TextRun({
+                text: parenthesizeNote(entry.note),
+                italics: true,
+                font: NOTICE_FONT,
+                size: halfPoints(entry.noteSize ?? 11),
+                color: NOTE_BROWN,
+              }),
             ],
           }),
         );
@@ -92,7 +118,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
         alignment: AlignmentType.CENTER,
         spacing: { before: 320 },
         children: [
-          new TextRun({ text: request.footer.trim(), italics: true, font: "Georgia", size: halfPoints(request.footerSize ?? 11) }),
+          new TextRun({ text: request.footer.trim(), bold: true, font: NOTICE_FONT, size: halfPoints(request.footerSize ?? 11) }),
         ],
       }),
     );
