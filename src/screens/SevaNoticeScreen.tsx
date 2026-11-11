@@ -36,7 +36,7 @@ function clampCanvasTextSize(value: number): number {
   return Math.round(clamped * 2) / 2;
 }
 
-const defaultFooter = "May Their Lordships Sri Sri Radha Gopinath bestow Their infinite mercy and choicest blessings upon all the sponsors, their families, and all living beings. Hare Krishna.";
+const defaultFooter = "May Sri Sri Radha Gopinathji shower Their causeless blessings upon them & their families…";
 const initialSections: SponsorSection[] = [
   { id: "nitya", title: "Nitya Seva", entries: [] },
   { id: "bhagvat", title: "Bhagvat Seva", entries: [] },
