@@ -5,6 +5,10 @@ import type {
   HandoffOutcome,
   MappingLookupRequest,
   MappingLookupResult,
+  MatcherExportRequest,
+  MatcherExportResult,
+  MatcherPickResult,
+  MatcherReadRequest,
   QueuePayload,
   SaveMappingRequest,
   SevaDocxRequest,
@@ -53,6 +57,9 @@ const IPC = {
   senderStop: "sender:stop",
   downloadParthSenderExtension: "extension:downloadParthSender",
   sevaSaveDocx: "seva:saveDocx",
+  matcherPickFile: "matcher:pickFile",
+  matcherReadFile: "matcher:readFile",
+  matcherExport: "matcher:export",
 } as const satisfies (typeof import("../shared/types"))["IPC"];
 
 const api = {
@@ -108,6 +115,15 @@ const api = {
 
   sevaSaveDocx: (req: SevaDocxRequest): Promise<{ canceled: boolean; filePath?: string; openError?: string }> =>
     ipcRenderer.invoke(IPC.sevaSaveDocx, req),
+
+  matcherPickFile: (side: "a" | "b"): Promise<MatcherPickResult> =>
+    ipcRenderer.invoke(IPC.matcherPickFile, { side }),
+
+  matcherReadFile: (req: MatcherReadRequest): Promise<WorkbookInfo | SheetSummary | { error: string }> =>
+    ipcRenderer.invoke(IPC.matcherReadFile, req),
+
+  matcherExport: (req: MatcherExportRequest): Promise<MatcherExportResult> =>
+    ipcRenderer.invoke(IPC.matcherExport, req),
   onSenderEvent: (callback: (event: { type: string; payload: unknown }) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload as { type: string; payload: unknown });
     ipcRenderer.on("sender:event", listener);

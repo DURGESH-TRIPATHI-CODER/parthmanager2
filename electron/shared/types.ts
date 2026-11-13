@@ -214,6 +214,41 @@ export interface UpdateStatusRequest {
   error?: string;
 }
 
+/* ------------------------- Structure Matcher ------------------------- */
+
+/** Result of the spreadsheet open dialog for File A / File B. */
+export interface MatcherPickResult {
+  canceled: boolean;
+  /** Present when the user picked a valid spreadsheet. */
+  file?: FileInfo;
+  /** Set when the picked file was rejected (type, size, unreadable). */
+  error?: string;
+}
+
+/** Read a user-picked spreadsheet: omit sheetIndex for the sheet list. */
+export interface MatcherReadRequest {
+  fullPath: string;
+  sheetIndex?: number;
+  /** True when the sheet has no header row: every row is a data record. */
+  noHeader?: boolean;
+}
+
+export interface MatcherExportRequest {
+  format: "xlsx" | "csv";
+  /** Suggested file name, without extension. */
+  defaultName: string;
+  /** Worksheet label inside the exported workbook (xlsx only). */
+  sheetName?: string;
+  headers: string[];
+  rows: string[][];
+}
+
+export interface MatcherExportResult {
+  canceled: boolean;
+  filePath?: string;
+  openError?: string;
+}
+
 /* ------------------------- IPC channel names ------------------------- */
 
 export const IPC = {
@@ -239,6 +274,9 @@ export const IPC = {
   senderStop: "sender:stop",
   downloadParthSenderExtension: "extension:downloadParthSender",
   sevaSaveDocx: "seva:saveDocx",
+  matcherPickFile: "matcher:pickFile",
+  matcherReadFile: "matcher:readFile",
+  matcherExport: "matcher:export",
 } as const;
 
 /** A donor line on the printed seva list. */

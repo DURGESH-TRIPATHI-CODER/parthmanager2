@@ -7,6 +7,10 @@ import type {
   HandoffOutcome,
   MappingLookupRequest,
   MappingLookupResult,
+  MatcherExportRequest,
+  MatcherExportResult,
+  MatcherPickResult,
+  MatcherReadRequest,
   QueuePayload,
   SaveMappingRequest,
   SheetSummary,
@@ -28,6 +32,7 @@ import {
 import { findFilesForDate } from "./fileFinder";
 import { handoffQueue } from "./handoff";
 import { buildSevaDocx } from "./sevaDocx";
+import { exportMatcherOutput, pickSpreadsheet, readMatcherSheet } from "./matcher";
 import type { PairingServer } from "../localConnection/server";
 
 /**
@@ -358,4 +363,36 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC.loadLastQueue, () => {
     return deps.sessions.latest();
   });
+
+  /* ---- Structure Matcher: user-picked files, read and exported safely ---- */
+
+  ipcMain.handle(
+    IPC.matcherPickFile,
+    async (event, req: { side?: unknown }): Promise<MatcherPickResult> => {
+      const side = req?.side === "b" ? "File B — Source Structure" : "File A — Reference Structure";
+      try {
+        return await pickSpreadsheet(event.sender, `Select ${side}`);
+      } catch (err) {
+        return { canceled: false, error: errMessage(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.matcherReadFile,
+    (_e, req: Partial<MatcherReadRequest>): WorkbookInfo | SheetSummary | { error: string } => {
+      try {
+        return readMatcherSheet(req) as WorkbookInfo | SheetSummary;
+      } catch (err) {
+        return { error: errMessage(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.matcherExport,
+    async (event, req: Partial<MatcherExportRequest>): Promise<MatcherExportResult> => {
+      return exportMatcherOutput(event.sender, req);
+    },
+  );
 }

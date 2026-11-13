@@ -136,6 +136,19 @@ body {
 
 code { background: var(--hover); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
+/* ---- Structure Matcher ---- */
+.table-scroll { overflow-x: auto; }
+.sm-preview { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
+.data-table th.name-col, .data-table td.name-col { background: var(--nav-active-bg); font-weight: 600; }
+.data-table tr.segment td {
+  background: var(--hover); color: var(--text-soft); font-weight: 600;
+  font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+}
+.data-table tbody tr.selectable { cursor: pointer; user-select: none; }
+.data-table tbody tr.selectable:hover td { background: var(--hover); }
+.data-table tbody tr.row-selected td { background: var(--nav-active-bg); }
+.data-table tbody tr.row-selected:hover td { background: var(--nav-active-bg); }
+
 /* --- Variable chips under the template input --- */
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; align-items: center; }
 .chip {

@@ -9,8 +9,9 @@ import { QueueScreen } from "./screens/QueueScreen";
 import { ImportScreen } from "./screens/ImportScreen";
 import { ParthSenderPanel } from "./components/ParthSenderPanel";
 import { SevaNoticeScreen } from "./screens/SevaNoticeScreen";
+import { StructureMatcherScreen } from "./screens/StructureMatcherScreen";
 
-export type Screen = "dashboard" | "import" | "templates" | "queue" | "seva-notice" | "settings";
+export type Screen = "dashboard" | "structure-matcher" | "import" | "templates" | "queue" | "seva-notice" | "settings";
 
 export interface QueueHandoff {
   roster: Array<{ name: string; phone: string }>;
@@ -103,6 +104,7 @@ export default function App() {
         <div className="brand">ParthSeva Manager</div>
         <ParthSenderPanel />
         <button className={"nav-btn" + (screen === "dashboard" ? " active" : "")} onClick={() => setScreen("dashboard")}>Dashboard</button>
+        <button className={"nav-btn" + (screen === "structure-matcher" ? " active" : "")} onClick={() => setScreen("structure-matcher")}>Structure Matcher</button>
         <details className="nav-group" open={birthdayMenuOpen} onToggle={(event) => setBirthdayMenuOpen(event.currentTarget.open)}>
           <summary className={"nav-btn nav-group-summary" + (birthdayFlowActive ? " active" : "")}>Birthday Sending</summary>
           <div className="nav-subitems">
@@ -141,6 +143,7 @@ export default function App() {
         {screen === "queue" && (
           <QueueScreen roster={queue?.roster} sourceFile={queue?.sourceFile} />
         )}
+        {screen === "structure-matcher" && <StructureMatcherScreen />}
         {screen === "seva-notice" && <SevaNoticeScreen />}
         {screen === "settings" && (
           <SettingsScreen

@@ -18,6 +18,17 @@ import { normalizeHeader } from "../shared/headers";
 
 const HEADER_SCAN_LIMIT = 25; // how many rows to scan when detecting the header row
 
+/** Excel-style column label: 0 -> A, 1 -> B, 25 -> Z, 26 -> AA. */
+export function columnLetter(index: number): string {
+  let n = index;
+  let label = "";
+  do {
+    label = String.fromCharCode(65 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return label;
+}
+
 function cellToText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -55,28 +66,56 @@ export function detectHeaderRow(matrix: string[][]): number {
   return best;
 }
 
-function toSheetSummary(name: string, index: number, matrix: string[][]): SheetSummary {
-  const headerRowIndex = detectHeaderRow(matrix);
-  const headerCells = matrix[headerRowIndex] ?? [];
+function toSheetSummary(
+  name: string,
+  index: number,
+  matrix: string[][],
+  noHeader = false,
+): SheetSummary {
   const width = matrix.reduce((w, row) => Math.max(w, row.length), 0);
 
   // Fill missing header names so dropdowns stay aligned with data columns.
-  const headers: string[] = [];
-  for (let c = 0; c < width; c++) {
-    const label = cellToText(headerCells[c]);
-    headers.push(label !== "" ? label : `Column ${c + 1}`);
+  const fillHeaders = (labels: string[]): string[] => {
+    const headers: string[] = [];
+    for (let c = 0; c < width; c++) {
+      const label = cellToText(labels[c]);
+      headers.push(label !== "" ? label : columnLetter(c));
+    }
+    return headers;
+  };
+
+  const collectRows = (startRow: number): string[][] => {
+    const rows: string[][] = [];
+    for (let r = startRow; r < matrix.length; r++) {
+      const raw = matrix[r] ?? [];
+      if (raw.every((cell) => cell === "")) continue; // skip blank rows
+      const row: string[] = [];
+      for (let c = 0; c < width; c++) row.push(cellToText(raw[c]));
+      rows.push(row);
+    }
+    return rows;
+  };
+
+  // "First row is data" mode: no header row at all — every row is a record,
+  // and columns are labeled with Excel letters (A, B, C…).
+  if (noHeader) {
+    return {
+      name,
+      index,
+      headerRowIndex: 0,
+      headers: Array.from({ length: width }, (_, c) => columnLetter(c)),
+      rows: collectRows(0),
+    };
   }
 
-  const rows: string[][] = [];
-  for (let r = headerRowIndex + 1; r < matrix.length; r++) {
-    const raw = matrix[r] ?? [];
-    if (raw.every((cell) => cell === "")) continue; // skip blank rows
-    const row: string[] = [];
-    for (let c = 0; c < width; c++) row.push(cellToText(raw[c]));
-    rows.push(row);
-  }
-
-  return { name, index, headerRowIndex: headerRowIndex + 1, headers, rows };
+  const headerRowIndex = detectHeaderRow(matrix);
+  return {
+    name,
+    index,
+    headerRowIndex: headerRowIndex + 1,
+    headers: fillHeaders(matrix[headerRowIndex] ?? []),
+    rows: collectRows(headerRowIndex + 1),
+  };
 }
 
 /** Read workbook metadata (sheet list) for a discovered file. */
@@ -93,7 +132,7 @@ export function readWorkbookInfo(file: FileInfo): WorkbookInfo {
 }
 
 /** Read one worksheet of a workbook as a mapping-ready summary. */
-export function readSheet(file: FileInfo, sheetIndex: number): SheetSummary {
+export function readSheet(file: FileInfo, sheetIndex: number, noHeader = false): SheetSummary {
   const wb = XLSX.readFile(file.fullPath, { dense: false });
   const name = wb.SheetNames[sheetIndex];
   if (!name) throw new Error(`Worksheet index ${sheetIndex} not found`);
@@ -104,7 +143,7 @@ export function readSheet(file: FileInfo, sheetIndex: number): SheetSummary {
     defval: "",
     blankrows: false,
   });
-  return toSheetSummary(name, sheetIndex, matrix);
+  return toSheetSummary(name, sheetIndex, matrix, noHeader);
 }
 
 /** First worksheet of a workbook (default choice). */
