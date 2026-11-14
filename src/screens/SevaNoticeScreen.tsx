@@ -5,6 +5,7 @@ import "./SevaNoticeScreen.css";
 interface Sponsor { id: string; name: string; note: string; size: number; noteSize: number; autoFitName: boolean; sideBySide: boolean }
 interface SponsorSection { id: string; title: string; entries: Sponsor[] }
 type NoticeTab = "list" | "mangal" | "lunch";
+type PrintOrientation = "landscape" | "portrait";
 const TABS: Array<{ key: NoticeTab; label: string }> = [
   { key: "list", label: "Seva List" },
   { key: "mangal", label: "Mangal Aarti Announcement" },
@@ -79,11 +80,18 @@ function fileSafe(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
 }
 
-function printAs(title: string) {
+function printAs(title: string, orientation: PrintOrientation) {
   const previousTitle = document.title;
+  const pageStyle = document.createElement("style");
+  pageStyle.dataset.sevaPrintPage = "";
+  pageStyle.media = "print";
+  pageStyle.textContent = `@page { size: A4 ${orientation}; margin: 10mm; }`;
+  document.querySelectorAll("style[data-seva-print-page]").forEach((style) => style.remove());
+  document.head.appendChild(pageStyle);
   document.title = fileSafe(title);
   const restore = () => {
     document.title = previousTitle;
+    pageStyle.remove();
     window.clearTimeout(fallback);
   };
   const fallback = window.setTimeout(restore, 60_000);
@@ -318,7 +326,8 @@ export function SevaNoticeScreen() {
     return parsed ? formatSevaDate(parsed) : date.replace(/,$/, "");
   }, [date]);
   const fileName = fileDate.trim() ? `${activeLabel} ${fileDate}` : activeLabel;
-  const printPanel = () => printAs(fileName);
+  const printOrientation: PrintOrientation = tab === "list" ? "landscape" : "portrait";
+  const printPanel = () => printAs(fileName, printOrientation);
 
   // The Word document carries the same sections, names, notes and sizes as the sheet.
   const docxSections = sections

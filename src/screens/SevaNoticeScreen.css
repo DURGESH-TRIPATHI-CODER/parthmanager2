@@ -86,7 +86,6 @@
 @media(max-width:900px) { .seva-announcement-text { max-height:none; } }
 @media(max-width:760px) { .seva-workspace { grid-template-columns:1fr; } .seva-editor { max-height:none; } }
 @media print {
-  @page { size:A4 landscape; margin:10mm; }
   body * { visibility:hidden !important; }
   .seva-printable,.seva-printable * { visibility:visible !important; }
   .seva-printable { position:absolute; inset:0; overflow:visible; padding:0; border:0; background:#fff; }

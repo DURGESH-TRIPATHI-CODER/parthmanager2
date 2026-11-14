@@ -4,19 +4,15 @@ import type { SevaDocxRequest } from "../shared/types";
 /**
  * Writes an editable Word document for the seva list or an announcement.
  *
- * The page is A4 landscape to match what the screen shows. The editor uses
- * points, while Word stores font sizes as half-points (pt × 2).
+ * Seva lists use A4 landscape while announcements use A4 portrait. The editor
+ * uses points, while Word stores font sizes as half-points (pt × 2).
  */
 
 const HEADING_BROWN = "7A3B12";
 const NOTE_BROWN = "5A4328";
 const NOTICE_FONT = "Bell MT";
 
-const A4_LANDSCAPE = {
-  orientation: "landscape" as const,
-  width: 16838,
-  height: 11906,
-};
+const A4_PORTRAIT_SIZE = { width: 11906, height: 16838 } as const;
 
 function halfPoints(points: number): number {
   return Math.max(8, Math.round(points * 2));
@@ -29,6 +25,7 @@ function parenthesizeNote(note: string): string {
 
 export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
   const children: Paragraph[] = [];
+  const orientation = request.text === undefined ? "landscape" : "portrait";
 
   if (request.date?.trim()) {
     children.push(
@@ -129,7 +126,7 @@ export async function buildSevaDocx(request: SevaDocxRequest): Promise<Buffer> {
       {
         properties: {
           page: {
-            size: A4_LANDSCAPE,
+            size: { ...A4_PORTRAIT_SIZE, orientation },
             margin: { top: 900, bottom: 900, left: 960, right: 960 },
           },
         },

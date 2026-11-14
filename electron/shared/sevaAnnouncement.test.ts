@@ -67,8 +67,10 @@ describe("buildSevaAnnouncements", () => {
     expect(lunch).toContain("Today’s Bhagvad Seva");
     expect(lunch).toContain("• Bhagvat Donor (In memory of his father)");
     expect(lunch).toContain("• Priti Donor");
-    expect(lunch).toContain("Today’s Lunch Prasad is contributed by\n• Lunch Donor (Seeking Blessings)");
-    expect(lunch).toContain("loudly chanting the Hare Krishna Mahamantra");
+    expect(lunch).toContain("Today’s Lunch Prasad is contributed by –\n• Lunch Donor (Seeking Blessings)");
+    expect(lunch).toContain(
+      "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra…!!!",
+    );
   });
 
   it("builds the mangal aarti announcement with its own heading and spelling", () => {
@@ -77,7 +79,43 @@ describe("buildSevaAnnouncements", () => {
     expect(mangalAarti).toContain("Today’s Bhagvat Seva");
     expect(mangalAarti).not.toContain("Today’s Bhagvad Seva");
     expect(mangalAarti).toContain("• Bhagvat Donor (In memory of his father)");
-    expect(mangalAarti).toContain("Hare Krishna Mahamantra !!!");
+    expect(mangalAarti).toContain("Hare Krishna Mahamantra…!!!");
+  });
+
+  it.each(["Seeking Blessings", "On occasion of his birthday"])(
+    "uses the Haribol closing for %s when there is no memorial dedication",
+    (note) => {
+      const birthdayOrBlessingSections = [
+        { id: "lunch", entries: [{ name: "Celebrating Donor", note }] },
+      ];
+      const { lunch } = buildSevaAnnouncements(birthdayOrBlessingSections, "01st November 2026");
+      expect(lunch).toContain(
+        "Let us express our best wishes, gratitude and prayers by loudly chanting three times Haribol…!!!",
+      );
+      expect(lunch).not.toContain("Hare Krishna Mahamantra");
+    },
+  );
+
+  it("gives one memorial dedication priority over blessings and birthdays", () => {
+    const mixedSections = [{
+      id: "lunch",
+      entries: [
+        { name: "Harsh Ullas Kaku Prabhuji", note: "Seeking Blessings" },
+        { name: "Her Grace Kirti Gopi Mataji", note: "In loving memory of her mother Smt. Chandrani Grover" },
+        { name: "His Grace Sacci Prana Prabhuji", note: "On occasion of his birthday" },
+      ],
+    }];
+    const { lunch } = buildSevaAnnouncements(mixedSections, "01st November 2026");
+    expect(lunch).toContain(
+      "Today’s Lunch Prasad is contributed by –\n" +
+      "• Harsh Ullas Kaku Prabhuji (Seeking Blessings)\n" +
+      "• Her Grace Kirti Gopi Mataji (In loving memory of her mother Smt. Chandrani Grover)\n" +
+      "• His Grace Sacci Prana Prabhuji (On occasion of his birthday)",
+    );
+    expect(lunch).toContain(
+      "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra…!!!",
+    );
+    expect(lunch).not.toContain("three times Haribol");
   });
 
   it("omits seva sentences when that seva has no donor", () => {
@@ -93,7 +131,7 @@ describe("buildSevaAnnouncements", () => {
     expect(mangalAarti).not.toContain("Today’s Bhagvat Seva");
     expect(mangalAarti).not.toContain("Today’s Priti Bhoj Seva");
     expect(lunch).toContain("Hare Krishna Mahamantra");
-    expect(mangalAarti).toContain("Hare Krishna Mahamantra !!!");
+    expect(mangalAarti).toContain("Hare Krishna Mahamantra…!!!");
   });
 
   it("ignores blank names and services that are not part of these formats", () => {

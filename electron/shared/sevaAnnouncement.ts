@@ -195,6 +195,33 @@ function sponsorLines(entries: SevaSponsor[] | undefined): string | null {
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+const MAHAMANTRA_CLOSING =
+  "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra…!!!";
+const HARIBOL_CLOSING =
+  "Let us express our best wishes, gratitude and prayers by loudly chanting three times Haribol…!!!";
+
+/**
+ * Pick the closing from the dedications that are actually shown. A memorial
+ * dedication takes priority over celebratory dedications when both occur in
+ * the same announcement.
+ */
+function announcementClosing(entries: SevaSponsor[]): string {
+  const notes = entries
+    .filter((entry) => (entry.name ?? "").trim())
+    .map((entry) => (entry.note ?? "").trim().toLowerCase())
+    .filter(Boolean);
+
+  const hasMemorial = notes.some((note) =>
+    /\bin\s+(?:loving\s+)?memory\b/.test(note) || /\bloving\s+memory\b/.test(note),
+  );
+  if (hasMemorial) return MAHAMANTRA_CLOSING;
+
+  const hasBestWishes = notes.some((note) =>
+    /\bseeking\s+blessings?\b/.test(note) || /\bbirth\s*day\b/.test(note),
+  );
+  return hasBestWishes ? HARIBOL_CLOSING : MAHAMANTRA_CLOSING;
+}
+
 function sectionEntries(sections: SevaSectionInput[], id: string): SevaSponsor[] {
   return sections.find((section) => section.id === id)?.entries ?? [];
 }
@@ -210,10 +237,14 @@ export function buildSevaAnnouncements(
 ): SevaAnnouncements {
   const headings = resolveHeadings(dateText, today);
 
-  const nitya = sponsorLines(sectionEntries(sections, "nitya"));
-  const bhagvad = sponsorLines(sectionEntries(sections, "bhagvat"));
-  const priti = sponsorLines(sectionEntries(sections, "priti"));
-  const lunchPrasad = sponsorLines(sectionEntries(sections, "lunch"));
+  const nityaEntries = sectionEntries(sections, "nitya");
+  const bhagvadEntries = sectionEntries(sections, "bhagvat");
+  const pritiEntries = sectionEntries(sections, "priti");
+  const lunchPrasadEntries = sectionEntries(sections, "lunch");
+  const nitya = sponsorLines(nityaEntries);
+  const bhagvad = sponsorLines(bhagvadEntries);
+  const priti = sponsorLines(pritiEntries);
+  const lunchPrasad = sponsorLines(lunchPrasadEntries);
 
   const lunchBlocks = [`${headings.lunch}: Lunch Announcement:`];
   if (nitya) lunchBlocks.push(
@@ -225,8 +256,13 @@ export function buildSevaAnnouncements(
   if (priti) lunchBlocks.push(
     `Today’s Priti Bhoj Seva which includes the entire day’s Prasad for devotees is contributed by the following devotees…\n${priti}`,
   );
-  if (lunchPrasad) lunchBlocks.push(`Today’s Lunch Prasad is contributed by\n${lunchPrasad}`);
-  lunchBlocks.push("Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra");
+  if (lunchPrasad) lunchBlocks.push(`Today’s Lunch Prasad is contributed by –\n${lunchPrasad}`);
+  lunchBlocks.push(announcementClosing([
+    ...nityaEntries,
+    ...bhagvadEntries,
+    ...pritiEntries,
+    ...lunchPrasadEntries,
+  ]));
   const lunch = lunchBlocks.join("\n\n");
 
   const mangalBlocks = [
@@ -244,7 +280,7 @@ export function buildSevaAnnouncements(
   );
   mangalBlocks.push(
     "We would like to pray to Their Lordships to shower their choicest Blessings upon them & their families, for their wonderful service.",
-    "Let us express our gratitude and prayers by loudly chanting the Hare Krishna Mahamantra !!!",
+    announcementClosing([...nityaEntries, ...bhagvadEntries, ...pritiEntries]),
   );
   const mangalAarti = mangalBlocks.join("\n\n");
 
