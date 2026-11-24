@@ -9,6 +9,7 @@ import type {
   MappingLookupResult,
   MatcherExportRequest,
   MatcherExportResult,
+  MatcherOpenRequest,
   MatcherPickResult,
   MatcherReadRequest,
   QueuePayload,
@@ -32,7 +33,7 @@ import {
 import { findFilesForDate } from "./fileFinder";
 import { handoffQueue } from "./handoff";
 import { buildSevaDocx } from "./sevaDocx";
-import { exportMatcherOutput, pickSpreadsheet, readMatcherSheet } from "./matcher";
+import { exportMatcherOutput, openSpreadsheetPath, pickSpreadsheet, readMatcherSheet } from "./matcher";
 import type { PairingServer } from "../localConnection/server";
 
 /**
@@ -372,6 +373,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       const side = req?.side === "b" ? "File B — Source Structure" : "File A — Reference Structure";
       try {
         return await pickSpreadsheet(event.sender, `Select ${side}`);
+      } catch (err) {
+        return { canceled: false, error: errMessage(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC.matcherOpenPath,
+    (_e, req: Partial<MatcherOpenRequest>): MatcherPickResult => {
+      try {
+        return openSpreadsheetPath(String(req?.fullPath ?? ""));
       } catch (err) {
         return { canceled: false, error: errMessage(err) };
       }

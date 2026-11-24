@@ -1,33 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import type {
-  FileInfo,
-  SheetSummary,
-  WorkbookInfo,
-} from "@shared/types";
+import type { FileInfo, SheetSummary, WorkbookInfo } from "@shared/types";
 import {
   analyzeStructureMatch,
   buildMatcherOutput,
+  normalizeName,
+  suggestNameColumn,
   type StructureMatchAnalysis,
   type MatcherOutput,
 } from "@shared/structureMatcher";
 import { suggestMapping } from "@shared/headers";
 
-/**
- * Structure Matcher: reorganize File B rows to follow File A's sequence.
- * All matching runs locally on already-parsed sheet data (see
- * @shared/structureMatcher); the main process only reads and writes files.
- */
+const PREVIEW_ROWS = 8;
+const PREVIEW_COLUMNS = 10;
+const RESULT_ROWS = 150;
 
-const PREVIEW_ROWS = 8; // rows shown in the per-file preview
-const PREVIEW_COLUMNS = 10; // columns shown before a "…" column
-const RESULT_ROWS = 150; // rows shown in the result preview (export includes all)
+function isBooleanOnlyColumn(rows: string[][], columnIndex: number): boolean {
+  const values = rows
+    .map((row) => normalizeName(row[columnIndex]))
+    .filter(Boolean);
+  return values.length > 0 && values.every((value) => value === "true" || value === "false");
+}
 
 interface SideState {
   file: FileInfo | null;
   workbook: WorkbookInfo | null;
   sheet: SheetSummary | null;
   nameColumn: number | null;
-  /** True when the sheet has no header row: the first row is already data. */
   noHeader: boolean;
 }
 
@@ -36,24 +34,8 @@ const EMPTY_SIDE: SideState = {
   workbook: null,
   sheet: null,
   nameColumn: null,
-  // Structure Matcher files typically start with names in row 1 (no headers).
   noHeader: true,
 };
-
-/** For headerless sheets: suggest the column with the most filled cells. */
-function suggestNameColumnHeaderless(rows: string[][]): number | null {
-  const width = rows.reduce((w, r) => Math.max(w, r.length), 0);
-  let best: number | null = null;
-  let bestCount = 0;
-  for (let c = 0; c < width; c++) {
-    const count = rows.filter((r) => String(r[c] ?? "").trim() !== "").length;
-    if (count > bestCount) {
-      bestCount = count;
-      best = c;
-    }
-  }
-  return best;
-}
 
 interface FilePanelProps {
   side: "a" | "b";
@@ -63,14 +45,14 @@ interface FilePanelProps {
   onStateChange: (next: SideState) => void;
 }
 
-/** One upload panel: pick file, choose worksheet, choose the Name column, preview. */
 function FilePanel({ side, title, description, state, onStateChange }: FilePanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   const applySheet = (sheet: SheetSummary, noHeader: boolean, base: SideState) => {
     const suggested = noHeader
-      ? suggestNameColumnHeaderless(sheet.rows)
+      ? suggestNameColumn(sheet.rows)
       : (suggestMapping(sheet.headers).find((c) => c.field === "name")?.columnIndex ?? null);
     onStateChange({
       ...base,
@@ -97,6 +79,37 @@ function FilePanel({ side, title, description, state, onStateChange }: FilePanel
     }
   };
 
+  const loadWorkbook = async (file: FileInfo) => {
+    onStateChange({ file, workbook: null, sheet: null, nameColumn: null, noHeader: true });
+    const wb = await window.parthseva.matcherReadFile({ fullPath: file.fullPath });
+    if ("error" in wb) {
+      setError(wb.error);
+      return;
+    }
+    const workbook = wb as WorkbookInfo;
+    onStateChange({ file, workbook, sheet: null, nameColumn: null, noHeader: true });
+    if (workbook.sheets.length === 0) {
+      setError("This workbook has no worksheets.");
+      return;
+    }
+    const res = await window.parthseva.matcherReadFile({
+      fullPath: file.fullPath,
+      sheetIndex: workbook.sheets[0].index,
+      noHeader: true,
+    });
+    if ("error" in res) {
+      setError(res.error);
+      return;
+    }
+    applySheet(res as SheetSummary, true, {
+      file,
+      workbook,
+      sheet: null,
+      nameColumn: null,
+      noHeader: true,
+    });
+  };
+
   const chooseFile = async () => {
     setError(null);
     setBusy(true);
@@ -107,29 +120,38 @@ function FilePanel({ side, title, description, state, onStateChange }: FilePanel
         setError(pick.error ?? "Could not open that file.");
         return;
       }
-      const file = pick.file;
-      onStateChange({ file, workbook: null, sheet: null, nameColumn: null, noHeader: true });
-      const wb = await window.parthseva.matcherReadFile({ fullPath: file.fullPath });
-      if ("error" in wb) {
-        setError(wb.error);
+      await loadWorkbook(pick.file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragActive(false);
+    if (busy) return;
+    setError(null);
+    const dropped = event.dataTransfer.files?.[0];
+    if (!dropped) {
+      setError("Drop a single XLSX, XLS or CSV file.");
+      return;
+    }
+    const fullPath = window.parthseva.getPathForFile(dropped);
+    if (!fullPath) {
+      setError("Could not read that dropped file. Use the button below instead.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const opened = await window.parthseva.matcherOpenPath({ fullPath });
+      if (opened.canceled) return;
+      if (opened.error || !opened.file) {
+        setError(opened.error ?? "Could not open that file.");
         return;
       }
-      const workbook = wb as WorkbookInfo;
-      onStateChange({ file, workbook, sheet: null, nameColumn: null, noHeader: true });
-      if (workbook.sheets.length > 0) {
-        const res = await window.parthseva.matcherReadFile({
-          fullPath: file.fullPath,
-          sheetIndex: workbook.sheets[0].index,
-          noHeader: true,
-        });
-        if ("error" in res) {
-          setError(res.error);
-          return;
-        }
-        applySheet(res as SheetSummary, true, { file, workbook, sheet: null, nameColumn: null, noHeader: true });
-      } else {
-        setError("This workbook has no worksheets.");
-      }
+      await loadWorkbook(opened.file);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -146,17 +168,36 @@ function FilePanel({ side, title, description, state, onStateChange }: FilePanel
     <div className="card">
       <div className="card-label">{title}</div>
       <p className="hint" style={{ marginTop: 0 }}>{description}</p>
-      {state.file && (
-        <div className="card-sub">
-          <span className="status-pill ok">{state.file.filename}</span>{" "}
-          <span className="status-pill">{state.file.kind.toUpperCase()}</span>
+      <div
+        className={"drop-zone" + (dragActive ? " drag-active" : "")}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!busy) setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDragActive(false);
+          }
+        }}
+        onDrop={(event) => void handleDrop(event)}
+      >
+        {state.file ? (
+          <div className="card-sub" style={{ marginTop: 0 }}>
+            <span className="status-pill ok">{state.file.filename}</span>{" "}
+            <span className="status-pill">{state.file.kind.toUpperCase()}</span>
+          </div>
+        ) : (
+          <div className="hint" style={{ marginTop: 0 }}>
+            Drag & drop an XLSX, XLS or CSV file here — or choose one below.
+          </div>
+        )}
+        <div className="btn-row">
+          <button className="btn" onClick={() => void chooseFile()} disabled={busy}>
+            {busy ? "Opening…" : state.file ? "Choose another file" : `Choose ${side === "a" ? "File A" : "File B"} `}
+          </button>
         </div>
-      )}
-      <div className="btn-row">
-        <button className="btn" onClick={() => void chooseFile()} disabled={busy}>
-          {state.file ? "Choose another file" : `Choose ${side === "a" ? "File A" : "File B"}`}
-        </button>
       </div>
+
       {state.workbook && state.workbook.sheets.length > 1 && (
         <label className="hint" style={{ display: "block", marginTop: 10 }}>
           Worksheet
@@ -203,9 +244,11 @@ function FilePanel({ side, title, description, state, onStateChange }: FilePanel
             }}
           >
             <option value="">Select a column…</option>
-            {state.sheet.headers.map((h, i) => (
-              <option key={i} value={i}>{h}</option>
-            ))}
+            {state.sheet.headers.map((h, i) =>
+              isBooleanOnlyColumn(state.sheet!.rows, i) ? null : (
+                <option key={i} value={i}>{h}</option>
+              ),
+            )}
           </select>
         </label>
       )}
@@ -252,15 +295,6 @@ function FilePanel({ side, title, description, state, onStateChange }: FilePanel
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="card">
-      <div className="card-label">{label}</div>
-      <div className="card-value">{value}</div>
-    </div>
-  );
-}
-
 function defaultExportName(filename: string | undefined): string {
   const base = (filename ?? "Source").replace(/\.[^.]+$/, "");
   return `${base} - Reordered`;
@@ -269,115 +303,163 @@ function defaultExportName(filename: string | undefined): string {
 interface ProcessedResult {
   analysis: StructureMatchAnalysis;
   output: MatcherOutput;
-  /** File A row indexes whose matched rows were moved (snapshot at process time). */
   moved: ReadonlySet<number>;
 }
 
 export function StructureMatcherScreen() {
   const [a, setA] = useState<SideState>(EMPTY_SIDE);
   const [b, setB] = useState<SideState>(EMPTY_SIDE);
-  const [dupAck, setDupAck] = useState(false);
   const [movedSelection, setMovedSelection] = useState<Set<number>>(new Set());
-  const [lastTickIndex, setLastTickIndex] = useState<number | null>(null);
-  /** When true the final file contains only the selected names' rows. */
-  const [onlySelected, setOnlySelected] = useState(true);
+  const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+  const [nameFilter, setNameFilter] = useState("");
   const [processed, setProcessed] = useState<ProcessedResult | null>(null);
   const [exportFormat, setExportFormat] = useState<"xlsx" | "csv">("xlsx");
+  const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Leaving the feature discards all in-memory spreadsheet data (nothing is
-  // written to either input file at any point).
   useEffect(() => () => setProcessed(null), []);
 
-  const updateA = (next: SideState) => {
-    setA(next);
-    setProcessed(null);
-    setExportMessage(null);
-  };
-  const updateB = (next: SideState) => {
-    setB(next);
-    setProcessed(null);
-    setExportMessage(null);
-  };
-
-  const reset = () => {
-    setA(EMPTY_SIDE);
-    setB(EMPTY_SIDE);
-    setDupAck(false);
+  const resetOutput = () => {
     setProcessed(null);
     setExportMessage(null);
     setExportError(null);
   };
 
-  const ready = Boolean(a.sheet && b.sheet && a.nameColumn !== null && b.nameColumn !== null);
+  const updateA = (next: SideState) => {
+    setA(next);
+    resetOutput();
+  };
+  const updateB = (next: SideState) => {
+    setB(next);
+    resetOutput();
+  };
+
+  const reset = () => {
+    setA(EMPTY_SIDE);
+    setB(EMPTY_SIDE);
+    setMovedSelection(new Set());
+    setAnchorIndex(null);
+    setNameFilter("");
+    setExportFormat("xlsx");
+    setExporting(false);
+    resetOutput();
+  };
+
+  const bSheet = b.sheet;
+  const ready = Boolean(a.sheet && bSheet && a.nameColumn !== null && b.nameColumn !== null);
 
   const analysis = useMemo(() => {
-    if (!ready || !a.sheet || !b.sheet) return null;
+    if (!ready || !a.sheet || !bSheet) return null;
     return analyzeStructureMatch({
       aRows: a.sheet.rows,
       aNameColumn: a.nameColumn!,
-      bRows: b.sheet.rows,
+      bRows: bSheet.rows,
       bNameColumn: b.nameColumn!,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, a.sheet, a.nameColumn, b.sheet, b.nameColumn]);
 
-  // Default to moving every matched name; re-sync whenever the files/columns
-  // change (or clear when there is nothing to match).
   useEffect(() => {
-    setMovedSelection(new Set((analysis?.matched ?? []).map((m) => m.aIndex)));
+    setMovedSelection(new Set());
+    setAnchorIndex(null);
+    setProcessed(null);
+    setExportMessage(null);
+    setExportError(null);
   }, [analysis]);
 
+  const visibleARows = useMemo(() => {
+    if (!a.sheet || a.nameColumn === null) return [];
+    const needle = normalizeName(nameFilter);
+    const matchedByA = new Map((analysis?.matched ?? []).map((match) => [match.aIndex, match]));
+    const duplicateAIndexes = new Set(
+      (analysis?.duplicateGroups ?? []).flatMap((group) => group.aRows),
+    );
+
+    return a.sheet.rows
+      .map((row, aIndex) => {
+        const name = String(row[a.nameColumn!] ?? "").trim();
+        const match = matchedByA.get(aIndex);
+        const status = !name
+          ? "No name"
+          : !analysis
+            ? "Load File B"
+            : match
+              ? `File B row ${match.bIndex + (b.noHeader ? 1 : 2)}`
+              : duplicateAIndexes.has(aIndex)
+                ? "Duplicate name"
+                : "No exact match in File B";
+        return { aIndex, name, match, status, hasData: row.some((cell) => String(cell ?? "").trim()) };
+      })
+      .filter(({ name, hasData }) => hasData && (!needle || normalizeName(name).includes(needle)));
+  }, [a.sheet, a.nameColumn, analysis, b.noHeader, nameFilter]);
+
+  const selectedMatchCount = analysis
+    ? analysis.matched.filter((match) => movedSelection.has(match.aIndex)).length
+    : 0;
   const canProcess = Boolean(
     analysis &&
     a.sheet &&
-    b.sheet &&
+    bSheet &&
+    selectedMatchCount > 0 &&
     a.sheet.rows.some((r) => String(r[a.nameColumn!] ?? "").trim() !== "") &&
-    b.sheet.rows.some((r) => String(r[b.nameColumn!] ?? "").trim() !== "") &&
-    (analysis.duplicateNameCount === 0 || dupAck),
+    bSheet.rows.some((r) => String(r[b.nameColumn!] ?? "").trim() !== ""),
   );
 
-  /** Tick one name, or with Shift held, tick the whole range like in Excel. */
-  const tickMoved = (index: number, shift: boolean) => {
-    if (!analysis) return;
-    const matched = analysis.matched;
-    const target = matched[index].aIndex;
-    if (shift && lastTickIndex !== null) {
-      // Apply the clicked checkbox's new state across the whole range.
-      const check = !movedSelection.has(target);
-      const [start, end] = lastTickIndex <= index ? [lastTickIndex, index] : [index, lastTickIndex];
-      const next = new Set(movedSelection);
-      for (let i = start; i <= end; i++) {
-        const aIndex = matched[i].aIndex;
-        if (check) next.add(aIndex);
-        else next.delete(aIndex);
+  const buildOutput = (): MatcherOutput | null => {
+    if (!analysis || !bSheet) return null;
+    return buildMatcherOutput(bSheet.rows, analysis, movedSelection, [], true);
+  };
+
+  const selectRow = (aIndex: number, event: React.MouseEvent<HTMLTableRowElement>) => {
+    if (!analysis?.matched.some((match) => match.aIndex === aIndex)) return;
+    const additive = event.ctrlKey || event.metaKey;
+
+    if (event.shiftKey && anchorIndex !== null) {
+      const [start, end] = anchorIndex <= aIndex ? [anchorIndex, aIndex] : [aIndex, anchorIndex];
+      const next = additive ? new Set(movedSelection) : new Set<number>();
+      for (const match of analysis.matched) {
+        if (match.aIndex >= start && match.aIndex <= end) next.add(match.aIndex);
       }
       setMovedSelection(next);
-    } else {
+    } else if (additive) {
       const next = new Set(movedSelection);
-      if (movedSelection.has(target)) next.delete(target);
-      else next.add(target);
+      if (next.has(aIndex)) next.delete(aIndex);
+      else next.add(aIndex);
       setMovedSelection(next);
+      setAnchorIndex(aIndex);
+    } else {
+      setMovedSelection(new Set([aIndex]));
+      setAnchorIndex(aIndex);
     }
-    setLastTickIndex(index);
-    setProcessed(null);
-    setExportMessage(null);
+    resetOutput();
   };
 
-  const doProcess = () => {
-    if (!analysis || !b.sheet) return;
-    setExportMessage(null);
-    const moved = new Set(movedSelection);
-    setProcessed({
-      analysis,
-      moved,
-      output: buildMatcherOutput(b.sheet.rows, analysis, moved, [], !onlySelected),
-    });
+  const selectAll = () => {
+    if (!analysis) return;
+    setMovedSelection(new Set(analysis.matched.map((m) => m.aIndex)));
+    resetOutput();
   };
 
-  const doExport = async () => {
-    if (!processed || !bSheet) return;
+  const selectVisible = () => {
+    const next = new Set(movedSelection);
+    for (const { match } of visibleARows) {
+      if (match) next.add(match.aIndex);
+    }
+    setMovedSelection(next);
+    resetOutput();
+  };
+
+  const preview = () => {
+    const output = buildOutput();
+    if (!analysis || !output) return;
+    setProcessed({ analysis, moved: new Set(movedSelection), output });
+    setExportMessage(null);
+    setExportError(null);
+  };
+
+  const saveOutput = async (output: MatcherOutput) => {
+    if (!bSheet) return;
+    setExporting(true);
     setExportError(null);
     setExportMessage(null);
     try {
@@ -386,7 +468,7 @@ export function StructureMatcherScreen() {
         defaultName: defaultExportName(b.file?.filename),
         sheetName: "Matched Output",
         headers: bSheet.headers,
-        rows: processed.output.rows,
+        rows: output.rows,
       });
       if (res.canceled) return;
       if (res.filePath) {
@@ -396,21 +478,29 @@ export function StructureMatcherScreen() {
       }
     } catch (e) {
       setExportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
     }
   };
 
-  /** Status label for the result preview, one per output row, in output order. */
+  const reorderAndSave = async () => {
+    const output = buildOutput();
+    if (!analysis || !output) return;
+    setProcessed({ analysis, moved: new Set(movedSelection), output });
+    await saveOutput(output);
+  };
+
   const resultLabels = useMemo(() => {
     if (!processed) return [];
-    const { analysis, output, moved } = processed;
-    const movedPos = new Map<number, number>(); // B row index -> 1-based moved position
+    const { analysis: processedAnalysis, output, moved } = processed;
+    const movedPos = new Map<number, number>();
     let k = 0;
-    for (const m of analysis.matched) {
+    for (const m of processedAnalysis.matched) {
       if (moved.has(m.aIndex)) movedPos.set(m.bIndex, ++k);
     }
-    const matchedByB = new Map(analysis.matched.map((m) => [m.bIndex, m]));
-    const unnamed = new Set(analysis.unnamedBRows);
-    const ambiguous = new Set(analysis.ambiguousBIndices);
+    const matchedByB = new Map(processedAnalysis.matched.map((m) => [m.bIndex, m]));
+    const unnamed = new Set(processedAnalysis.unnamedBRows);
+    const ambiguous = new Set(processedAnalysis.ambiguousBIndices);
     return output.sourceIndices.map((bIndex) => {
       const m = matchedByB.get(bIndex);
       if (m && movedPos.has(bIndex)) return `Moved to end — #${movedPos.get(bIndex)}`;
@@ -422,231 +512,134 @@ export function StructureMatcherScreen() {
   }, [processed]);
 
   const showSheet = processed !== null;
-  const bSheet = b.sheet;
   const displayedRows = showSheet && processed ? processed.output.rows.slice(0, RESULT_ROWS) : [];
-  const resultColumns = showSheet && b.sheet ? Math.min(b.sheet.headers.length, PREVIEW_COLUMNS + 2) : 0;
+  const resultColumns = showSheet && bSheet ? Math.min(bSheet.headers.length, PREVIEW_COLUMNS + 2) : 0;
 
   return (
     <section>
       <div className="screen-head">
         <h2>Structure Matcher</h2>
-        <button className="btn link danger" onClick={reset}>
-          Reset
-        </button>
+        <button className="btn link danger" onClick={reset}>Reset</button>
       </div>
       <p className="hint">
-        Reorganizes File B using File A's order. Only exact name matches are used (ignoring letter
-        case and extra spaces) — spelling differences are never matched automatically. You can
-        choose which matched names are moved to the end, and whether the final file contains only
-        those rows or everything. If a file has no header row, tick "First row is data". Both
-        original files stay untouched; the result is a brand-new spreadsheet. Supported formats:
-        XLSX, XLS, CSV.
+        Reorganizes File B using File A's order. Only exact name matches are used.
       </p>
 
       <div className="two-col">
-        <FilePanel
-          side="a"
-          title="File A — Reference Structure"
-          description="Defines the required row sequence."
-          state={a}
-          onStateChange={updateA}
-        />
-        <FilePanel
-          side="b"
-          title="File B — Source Structure"
-          description="Records that will be reorganized."
-          state={b}
-          onStateChange={updateB}
-        />
+        <FilePanel side="a" title="1 · File A — Reference order" description="Defines the required row sequence." state={a} onStateChange={updateA} />
+        <FilePanel side="b" title="2 · File B — Rows to reorder" description="Records that will be reorganized." state={b} onStateChange={updateB} />
       </div>
 
-      {analysis && (
-        <>
-          <div className="card-grid">
-            <Metric label="Total rows in A" value={analysis.totalA} />
-            <Metric label="Total rows in B" value={analysis.totalB} />
-            <Metric label="Matched records" value={analysis.matchedCount} />
-            <Metric label="Unmatched records" value={analysis.unmatchedCount} />
-            <Metric label="Missing records" value={analysis.missingCount} />
-            <Metric label="Duplicate names" value={analysis.duplicateNameCount} />
-            <Metric label="Output rows" value={analysis.outputRows} />
-          </div>
-
-          {analysis.missingInB.length > 0 && (
-            <div className="card">
-              <div className="card-label">Missing records — names in A not found in B</div>
-              <p className="hint" style={{ marginTop: 0 }}>
-                These names cannot be reordered because File B has no matching record. No rows are
-                invented for them.
-              </p>
-              <ul className="file-list">
-                {analysis.missingInB.map((m) => (
-                  <li key={m.aIndex}>
-                    <span>{m.name}</span>
-                    <span className="hint">File A, spreadsheet row {m.aIndex + (a.noHeader ? 1 : 2)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {analysis.duplicateGroups.length > 0 && (
-            <div className="card">
-              <div className="card-label">Duplicate names — manual review required</div>
-              <p className="hint" style={{ marginTop: 0 }}>
-                These names appear more than once, so the correct record cannot be chosen
-                automatically. Ambiguous rows are <strong>not</strong> moved: they stay at the top
-                of the output in their original order.
-              </p>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Occurrences in File A</th>
-                    <th>Occurrences in File B</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.duplicateGroups.map((g) => (
-                    <tr key={g.key} className="dup">
-                      <td>{g.display}</td>
-                      <td>{g.aRows.length}</td>
-                      <td>{g.bRows.length}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <label style={{ fontSize: 13 }}>
-                <input
-                  type="checkbox"
-                  checked={dupAck}
-                  onChange={(e) => setDupAck(e.target.checked)}
-                />{" "}
-                I have reviewed these duplicate names and accept that ambiguous rows will be kept
-                at the top rather than reordered.
-              </label>
-            </div>
-          )}
-
-          {analysis.matchedCount > 0 && (
-            <div className="card">
-              <div className="card-label">Names to move to the end</div>
-              <p className="hint" style={{ marginTop: 0 }}>
-                Click a name to select it. Hold <kbd>Shift</kbd> and click another to select the
-                whole range between them — like selecting rows in Excel. Selected names are the
-                ones whose File B rows move to the end; everything else keeps its original
-                position.
-              </p>
-              <div className="btn-row" style={{ marginTop: 0 }}>
-                <span className="hint">
-                  {movedSelection.size} of {analysis.matchedCount} matched names selected
-                </span>
-                <button
-                  className="btn link"
-                  onClick={() => setMovedSelection(new Set(analysis.matched.map((m) => m.aIndex)))}
-                >
-                  Select all
-                </button>
-                <button className="btn link" onClick={() => setMovedSelection(new Set())}>
-                  Clear
-                </button>
-              </div>
-              <div className="table-scroll sm-preview" style={{ maxHeight: 260 }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Row</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analysis.matched.map((m, i) => (
-                      <tr
-                        key={m.aIndex}
-                        className={"selectable" + (movedSelection.has(m.aIndex) ? " row-selected" : "")}
-                        onClick={(e) => tickMoved(i, e.shiftKey)}
-                      >
-                        <td>{m.name}</td>
-                        <td className="hint">{m.aIndex + (a.noHeader ? 1 : 2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <label style={{ display: "block", marginTop: 10, fontSize: 13 }}>
-                <input
-                  type="checkbox"
-                  checked={onlySelected}
-                  onChange={(e) => {
-                    setOnlySelected(e.target.checked);
-                    setProcessed(null);
-                    setExportMessage(null);
-                  }}
-                />{" "}
-                Final file contains <strong>only the selected names</strong> (with all their
-                columns) — every other File B row is left out
-              </label>
-              {onlySelected && movedSelection.size === 0 && (
-                <div className="warn-box">
-                  No names are selected — the final file would contain no rows. Tick at least one
-                  name (use Shift+click to select a whole range), or untick the option above to
-                  keep the other rows.
-                </div>
-              )}
-            </div>
-          )}
-
-          {(analysis.unnamedBRows.length > 0 || analysis.unnamedARows.length > 0 ||
-            analysis.emptyBRowsRemoved > 0 || analysis.emptyARowsRemoved > 0) && (
-            <div className="card">
-              <div className="card-label">Data notes</div>
-              <ul className="file-list">
-                {analysis.unnamedBRows.length > 0 && (
-                  <li>
-                    <span>
-                      {analysis.unnamedBRows.length} File B row(s) have data but no value in the
-                      Name column — kept at the top, not matched.
-                    </span>
-                  </li>
-                )}
-                {analysis.unnamedARows.length > 0 && (
-                  <li>
-                    <span>
-                      {analysis.unnamedARows.length} File A row(s) have data but no value in the
-                      Name column — skipped for sequencing.
-                    </span>
-                  </li>
-                )}
-                {analysis.emptyBRowsRemoved > 0 && (
-                  <li>
-                    <span>
-                      {analysis.emptyBRowsRemoved} completely empty File B row(s) will be removed
-                      from the output.
-                    </span>
-                  </li>
-                )}
-                {analysis.emptyARowsRemoved > 0 && (
-                  <li>
-                    <span>
-                      {analysis.emptyARowsRemoved} completely empty File A row(s) ignored.
-                    </span>
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
-
-          <div className="btn-row">
-            <button className="btn primary" onClick={doProcess} disabled={!canProcess}>
-              Process — Reorder File B
+      {a.sheet && a.nameColumn !== null && (
+        <div className="card" id="sm-selection">
+          <div className="card-label">3 · Select rows from File A</div>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Select the File A names that should control File B. Click one row, Ctrl+Click to add or remove rows,
+            and Shift+Click to select a range—just like Excel. Each selected matching row is removed from its
+            current position in File B and appended at the bottom in File A order.
+          </p>
+          <div className="btn-row" style={{ marginTop: 0 }}>
+            <input
+              className="input"
+              value={nameFilter}
+              placeholder="Search File A names…"
+              onChange={(e) => setNameFilter(e.target.value)}
+              style={{ flex: "1 1 240px", margin: 0 }}
+            />
+            <button className="btn link" onClick={selectAll} disabled={!analysis || analysis.matchedCount === 0}>
+              Select all ready rows
             </button>
-            {analysis && !canProcess && analysis.duplicateNameCount > 0 && !dupAck && (
-              <span className="hint">
-                Review and acknowledge the duplicate names above before processing.
-              </span>
-            )}
+            <button className="btn link" onClick={selectVisible} disabled={!visibleARows.some((row) => row.match)}>
+              Select visible
+            </button>
+            <button
+              className="btn link"
+              onClick={() => { setMovedSelection(new Set()); setAnchorIndex(null); resetOutput(); }}
+              disabled={movedSelection.size === 0}
+            >
+              Clear
+            </button>
           </div>
-        </>
+          <div className="hint" style={{ marginTop: 8 }}>
+            {selectedMatchCount} selected {analysis ? `· ${analysis.matchedCount} ready to move` : "· load File B to find matches"}
+          </div>
+          <div className="table-scroll sm-preview" style={{ maxHeight: 380 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th />
+                  <th>File A row</th>
+                  <th>Name from File A</th>
+                  <th>File B match</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleARows.map(({ aIndex, name, match, status }) => {
+                  const selected = movedSelection.has(aIndex);
+                  return (
+                    <tr
+                      key={aIndex}
+                      className={(match ? "selectable" : "") + (selected ? " row-selected" : "")}
+                      onClick={(event) => selectRow(aIndex, event)}
+                      title={match ? "Click: select one. Ctrl+Click: add/remove. Shift+Click: select a range." : status}
+                    >
+                      <td className="tick">{selected ? "✓" : ""}</td>
+                      <td>{aIndex + (a.noHeader ? 1 : 2)}</td>
+                      <td>{name || "—"}</td>
+                      <td>
+                        <span className={"status-pill " + (match ? "ok" : "warn")}>
+                          {match ? `Ready · ${status}` : status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {visibleARows.length === 0 && (
+            <div className="empty-box">No File A names match this search.</div>
+          )}
+          {analysis && analysis.matchedCount === 0 && (
+            <div className="warn-box">
+              No exact names match yet. Confirm that both Name columns contain names. TRUE/FALSE columns are not used.
+            </div>
+          )}
+        </div>
+      )}
+
+      {analysis && (
+        <div className="card">
+          <div className="card-label">4 · Move selected rows to the bottom</div>
+          <p className="hint" style={{ marginTop: 0 }}>
+            {selectedMatchCount > 0
+              ? `${selectedMatchCount} File B row(s) will be removed from their current positions and appended after the last remaining row in File A order.`
+              : "Select at least one File A row marked Ready."}
+            {" "}All other File B rows stay in their original order.
+          </p>
+          <div className="btn-row" style={{ marginTop: 0 }}>
+            <label className="hint" style={{ marginTop: 0 }}>
+              Format
+              <select
+                className="input"
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value === "csv" ? "csv" : "xlsx")}
+                style={{ width: "auto", display: "inline-block", margin: "0 0 0 8px" }}
+              >
+                <option value="xlsx">Excel workbook (.xlsx)</option>
+                <option value="csv">CSV file (.csv)</option>
+              </select>
+            </label>
+            <button className="btn primary" onClick={() => void reorderAndSave()} disabled={!canProcess || exporting}>
+              {exporting ? "Saving…" : "Move to bottom & save"}
+            </button>
+            <button className="btn" onClick={preview} disabled={!canProcess}>
+              Preview
+            </button>
+          </div>
+          {exportMessage && <div className="ok-box">{exportMessage}</div>}
+          {exportError && <div className="error-box">{exportError}</div>}
+        </div>
       )}
 
       {processed && bSheet && (
@@ -654,15 +647,7 @@ export function StructureMatcherScreen() {
           <div className="card wide">
             <div className="card-label">Result — final row order</div>
             <div className="ok-box" style={{ marginTop: 0 }}>
-              {processed.output.rows.length} rows in the output:{" "}
-              {processed.output.segments[1].end - processed.output.segments[1].start} moved to the
-              end in File A order
-              {processed.output.segments[0].end > 0
-                ? `, ${processed.output.segments[0].end} other rows kept in place`
-                : onlySelected
-                  ? " — other File B rows were left out (only selected names included)"
-                  : ""}
-              .
+              {processed.output.rows.length} rows in the output: {processed.output.segments[1].end - processed.output.segments[1].start} moved to the end in File A order.
             </div>
             <div className="table-scroll sm-preview">
               <table className="data-table">
@@ -670,77 +655,37 @@ export function StructureMatcherScreen() {
                   <tr>
                     <th>#</th>
                     <th>Position</th>
-                    {bSheet.headers.slice(0, resultColumns).map((h, i) => (
-                      <th key={i}>{h}</th>
-                    ))}
+                    {bSheet.headers.slice(0, resultColumns).map((h, i) => <th key={i}>{h}</th>)}
                     {bSheet.headers.length > resultColumns && <th>…</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  <SegmentRow
-                    label={`Kept in place (${processed.output.segments[0].end})`}
-                    visible={processed.output.segments[0].end > 0}
-                    columns={resultColumns + 2}
-                  />
+                  <SegmentRow label={`Kept in place (${processed.output.segments[0].end})`} visible={processed.output.segments[0].end > 0} columns={resultColumns + 2} />
                   {displayedRows.slice(0, processed.output.segments[0].end).map((row, r) => (
-                    <ResultRow
-                      key={r}
-                      row={row}
-                      index={r}
-                      label={resultLabels[r]}
-                      columns={resultColumns}
-                      extra={bSheet.headers.length > resultColumns}
-                    />
+                    <ResultRow key={r} row={row} index={r} label={resultLabels[r]} columns={resultColumns} extra={bSheet.headers.length > resultColumns} />
                   ))}
-                  <SegmentRow
-                    label={`Moved to end — File A order (${processed.output.segments[1].end - processed.output.segments[1].start})`}
-                    visible={processed.output.segments[1].end > processed.output.segments[1].start}
-                    columns={resultColumns + 2}
-                  />
+                  <SegmentRow label={`Moved to end — File A order (${processed.output.segments[1].end - processed.output.segments[1].start})`} visible={processed.output.segments[1].end > processed.output.segments[1].start} columns={resultColumns + 2} />
                   {displayedRows.slice(processed.output.segments[0].end).map((row, r) => (
-                    <ResultRow
-                      key={processed.output.segments[0].end + r}
-                      row={row}
-                      index={processed.output.segments[0].end + r}
-                      label={resultLabels[processed.output.segments[0].end + r]}
-                      columns={resultColumns}
-                      extra={bSheet.headers.length > resultColumns}
-                    />
+                    <ResultRow key={processed.output.segments[0].end + r} row={row} index={processed.output.segments[0].end + r} label={resultLabels[processed.output.segments[0].end + r]} columns={resultColumns} extra={bSheet.headers.length > resultColumns} />
                   ))}
                 </tbody>
               </table>
             </div>
             {processed.output.rows.length > RESULT_ROWS && (
-              <div className="hint">
-                Showing the first {RESULT_ROWS} of {processed.output.rows.length} rows — the export
-                includes every row.
-              </div>
+              <div className="hint">Showing the first {RESULT_ROWS} of {processed.output.rows.length} rows — the export includes every row.</div>
             )}
           </div>
 
           <div className="card wide">
-            <div className="card-label">Export</div>
+            <div className="card-label">Save this result</div>
             <div className="btn-row" style={{ marginTop: 0 }}>
-              <label className="hint">
-                Format
-                <select
-                  className="input"
-                  value={exportFormat}
-                  onChange={(e) => setExportFormat(e.target.value === "csv" ? "csv" : "xlsx")}
-                  style={{ width: "auto", display: "block" }}
-                >
-                  <option value="xlsx">Excel workbook (.xlsx)</option>
-                  <option value="csv">CSV file (.csv)</option>
-                </select>
-              </label>
-              <button className="btn primary" onClick={() => void doExport()}>
-                Download reorganized spreadsheet
+              <button className="btn primary" onClick={() => processed && void saveOutput(processed.output)} disabled={exporting}>
+                {exporting ? "Saving…" : `Save as ${exportFormat === "csv" ? "CSV" : "Excel"} `}
               </button>
+              <span className="hint" style={{ marginTop: 0 }}>
+                A new file is created — File A and File B are never modified. All original columns and cell values are preserved.
+              </span>
             </div>
-            <p className="hint">
-              A new file is created — File A and File B are never modified. All original columns
-              and cell values are preserved.
-            </p>
             {exportMessage && <div className="ok-box">{exportMessage}</div>}
             {exportError && <div className="error-box">{exportError}</div>}
           </div>
@@ -750,36 +695,12 @@ export function StructureMatcherScreen() {
   );
 }
 
-function SegmentRow({
-  label,
-  visible,
-  columns,
-}: {
-  label: string;
-  visible: boolean;
-  columns: number;
-}) {
+function SegmentRow({ label, visible, columns }: { label: string; visible: boolean; columns: number }) {
   if (!visible) return null;
-  return (
-    <tr className="segment">
-      <td colSpan={columns}>{label}</td>
-    </tr>
-  );
+  return <tr className="segment"><td colSpan={columns}>{label}</td></tr>;
 }
 
-function ResultRow({
-  row,
-  index,
-  label,
-  columns,
-  extra,
-}: {
-  row: string[];
-  index: number;
-  label: string;
-  columns: number;
-  extra: boolean;
-}) {
+function ResultRow({ row, index, label, columns, extra }: { row: string[]; index: number; label: string; columns: number; extra: boolean }) {
   return (
     <tr>
       <td>{index + 1}</td>
@@ -788,9 +709,7 @@ function ResultRow({
           {label}
         </span>
       </td>
-      {row.slice(0, columns).map((cell, c) => (
-        <td key={c}>{cell}</td>
-      ))}
+      {row.slice(0, columns).map((cell, c) => <td key={c}>{cell}</td>)}
       {extra && <td>…</td>}
     </tr>
   );

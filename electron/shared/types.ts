@@ -233,6 +233,11 @@ export interface MatcherReadRequest {
   noHeader?: boolean;
 }
 
+/** Validate a spreadsheet path that came from drag-and-drop instead of a dialog. */
+export interface MatcherOpenRequest {
+  fullPath: string;
+}
+
 export interface MatcherExportRequest {
   format: "xlsx" | "csv";
   /** Suggested file name, without extension. */
@@ -275,6 +280,7 @@ export const IPC = {
   downloadParthSenderExtension: "extension:downloadParthSender",
   sevaSaveDocx: "seva:saveDocx",
   matcherPickFile: "matcher:pickFile",
+  matcherOpenPath: "matcher:openPath",
   matcherReadFile: "matcher:readFile",
   matcherExport: "matcher:export",
 } as const;

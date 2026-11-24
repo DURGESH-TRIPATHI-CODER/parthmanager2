@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   DiscoveryResult,
   FileInfo,
@@ -7,6 +7,7 @@ import type {
   MappingLookupResult,
   MatcherExportRequest,
   MatcherExportResult,
+  MatcherOpenRequest,
   MatcherPickResult,
   MatcherReadRequest,
   QueuePayload,
@@ -58,6 +59,7 @@ const IPC = {
   downloadParthSenderExtension: "extension:downloadParthSender",
   sevaSaveDocx: "seva:saveDocx",
   matcherPickFile: "matcher:pickFile",
+  matcherOpenPath: "matcher:openPath",
   matcherReadFile: "matcher:readFile",
   matcherExport: "matcher:export",
 } as const satisfies (typeof import("../shared/types"))["IPC"];
@@ -118,6 +120,19 @@ const api = {
 
   matcherPickFile: (side: "a" | "b"): Promise<MatcherPickResult> =>
     ipcRenderer.invoke(IPC.matcherPickFile, { side }),
+
+  /** Validate a spreadsheet the user dropped on the window (no dialog). */
+  matcherOpenPath: (req: MatcherOpenRequest): Promise<MatcherPickResult> =>
+    ipcRenderer.invoke(IPC.matcherOpenPath, req),
+
+  /** Electron 32+ hides File.path; resolve the dropped file's OS path here. */
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return "";
+    }
+  },
 
   matcherReadFile: (req: MatcherReadRequest): Promise<WorkbookInfo | SheetSummary | { error: string }> =>
     ipcRenderer.invoke(IPC.matcherReadFile, req),

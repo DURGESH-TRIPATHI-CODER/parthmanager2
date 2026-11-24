@@ -47,6 +47,27 @@ function validateSpreadsheetPath(fullPath: string): string | null {
   return null;
 }
 
+function spreadsheetFileInfo(resolved: string): FileInfo {
+  return {
+    filename: path.basename(resolved),
+    fullPath: resolved,
+    kind: spreadsheetKind(resolved),
+    matchedDate: "",
+    sizeBytes: fs.statSync(resolved).size,
+  };
+}
+
+/** Validate a path supplied by drag-and-drop (no file dialog involved). */
+export function openSpreadsheetPath(fullPath: string): MatcherPickResult {
+  if (typeof fullPath !== "string" || !fullPath.trim()) {
+    return { canceled: false, error: "No file specified." };
+  }
+  const resolved = path.resolve(fullPath);
+  const problem = validateSpreadsheetPath(resolved);
+  if (problem) return { canceled: false, error: problem };
+  return { canceled: false, file: spreadsheetFileInfo(resolved) };
+}
+
 /** Open a file dialog and validate the chosen spreadsheet. */
 export async function pickSpreadsheet(
   sender: Electron.WebContents | null,
@@ -65,19 +86,7 @@ export async function pickSpreadsheet(
     ? await dialog.showOpenDialog(win, options)
     : await dialog.showOpenDialog(options);
   if (result.canceled || result.filePaths.length === 0) return { canceled: true };
-  const resolved = path.resolve(result.filePaths[0]);
-  const problem = validateSpreadsheetPath(resolved);
-  if (problem) return { canceled: false, error: problem };
-  return {
-    canceled: false,
-    file: {
-      filename: path.basename(resolved),
-      fullPath: resolved,
-      kind: spreadsheetKind(resolved),
-      matchedDate: "",
-      sizeBytes: fs.statSync(resolved).size,
-    },
-  };
+  return openSpreadsheetPath(result.filePaths[0]);
 }
 
 /** Read a user-picked spreadsheet: sheet list, or one mapped-ready sheet. */

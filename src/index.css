@@ -148,6 +148,16 @@ code { background: var(--hover); padding: 1px 5px; border-radius: 4px; font-size
 .data-table tbody tr.selectable:hover td { background: var(--hover); }
 .data-table tbody tr.row-selected td { background: var(--nav-active-bg); }
 .data-table tbody tr.row-selected:hover td { background: var(--nav-active-bg); }
+.drop-zone {
+  margin-top: 10px; padding: 12px 12px 4px;
+  border: 1.5px dashed var(--border); border-radius: 10px; background: var(--bg);
+  transition: border-color .15s, background .15s;
+}
+.drop-zone.drag-active { border-color: var(--accent); background: var(--nav-active-bg); }
+.drop-zone .btn-row { margin-top: 8px; }
+.drop-zone .btn { margin-top: 0; }
+.data-table td.tick { width: 30px; text-align: center; font-weight: 700; color: var(--accent); }
+#sm-selection { scroll-margin-top: 16px; }
 
 /* --- Variable chips under the template input --- */
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; align-items: center; }

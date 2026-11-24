@@ -3,6 +3,7 @@ import {
   analyzeStructureMatch,
   buildMatcherOutput,
   normalizeName,
+  suggestNameColumn,
 } from "./structureMatcher";
 
 /** PRD §3.4 example. */
@@ -32,6 +33,63 @@ describe("normalizeName", () => {
 
   it("does not correct spelling", () => {
     expect(normalizeName("Radhika Sharma")).not.toBe(normalizeName("Radhika Shama"));
+  });
+});
+
+describe("suggestNameColumn", () => {
+  it("prefers the name column over phone numbers and amounts", () => {
+    const rows = [
+      ["9876543210", "Rahul Sharma", "1200"],
+      ["9123456780", "Amit Patel", "800"],
+      ["9988776655", "Priya Desai", "1500"],
+    ];
+    expect(suggestNameColumn(rows)).toBe(1);
+  });
+
+  it("prefers names over dates", () => {
+    const rows = [
+      ["01/02/2024", "Neha"],
+      ["13/04/2025", "Karan"],
+    ];
+    expect(suggestNameColumn(rows)).toBe(1);
+  });
+
+  it("never mistakes a TRUE/FALSE column for names", () => {
+    const rows = [
+      ["Akincan Krsna Seva", "FALSE"],
+      ["Axis Bank E-Hundi Collections", "FALSE"],
+      ["Brahmachari Care CHW", "TRUE"],
+    ];
+    expect(suggestNameColumn(rows)).toBe(0);
+  });
+
+  it("keeps the first well-filled column when several look like names", () => {
+    const rows = [
+      ["Rahul", "Mumbai"],
+      ["Amit", "Pune"],
+    ];
+    expect(suggestNameColumn(rows)).toBe(0);
+  });
+
+  it("falls back to the most-filled column when no value looks like a name", () => {
+    const rows = [
+      ["1", "2001", ""],
+      ["2", "2002", ""],
+      ["3", "2003", ""],
+    ];
+    expect(suggestNameColumn(rows)).toBe(0);
+  });
+
+  it("ignores fully-empty rows and returns null for an empty sheet", () => {
+    expect(suggestNameColumn([])).toBeNull();
+    expect(suggestNameColumn([["", ""], ["", ""]])).toBeNull();
+    expect(
+      suggestNameColumn([
+        ["", ""],
+        ["Rahul", "111"],
+        ["Amit", "222"],
+      ]),
+    ).toBe(0);
   });
 });
 

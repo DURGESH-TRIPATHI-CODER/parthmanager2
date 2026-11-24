@@ -16,6 +16,61 @@ export function normalizeName(value: unknown): string {
     .toLowerCase();
 }
 
+/** True when a value reads like a name rather than a number, date or phone. */
+function looksLikeName(value: string): boolean {
+  const normalized = normalizeName(value);
+  if (["true", "false", "yes", "no"].includes(normalized)) return false;
+  let letters = 0;
+  let digits = 0;
+  for (const char of value) {
+    if (/\p{L}/u.test(char)) letters++;
+    else if (/\p{Nd}/u.test(char)) digits++;
+  }
+  if (letters === 0) return false;
+  // Names may contain a digit, but a mostly-numeric cell is an id/phone/date.
+  return digits <= letters;
+}
+
+/**
+ * Guess the Name column for a sheet without a header row.
+ *
+ * Prefers a column that is consistently filled with name-like values, so a
+ * phone, date or amount column is not picked over the actual names. Falls back
+ * to the most-filled column when nothing looks like a name.
+ */
+export function suggestNameColumn(rows: string[][]): number | null {
+  const dataRows = rows.filter((row) => !isFullyEmpty(row));
+  if (dataRows.length === 0) return null;
+  const width = dataRows.reduce((w, row) => Math.max(w, row.length), 0);
+  if (width === 0) return null;
+
+  let best: number | null = null;
+  let bestScore = 0;
+  let fallback: number | null = null;
+  let fallbackFilled = 0;
+  for (let c = 0; c < width; c++) {
+    let filled = 0;
+    let nameLike = 0;
+    for (const row of dataRows) {
+      const value = String(row[c] ?? "").trim();
+      if (!value) continue;
+      filled++;
+      if (looksLikeName(value)) nameLike++;
+    }
+    if (filled === 0) continue;
+    if (filled > fallbackFilled) {
+      fallbackFilled = filled;
+      fallback = c;
+    }
+    const score = (filled / dataRows.length) * (nameLike / filled);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best ?? fallback;
+}
+
 /** One normalized name and where it appears in each file. */
 export interface NameGroup {
   /** Normalized form used for matching. */

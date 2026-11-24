@@ -2,6 +2,17 @@
 
 All notable changes to ParthSeva Manager are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Structure Matcher: drag and drop spreadsheet files onto either file panel instead of using the picker.
+- Structure Matcher: the Name column is now suggested more reliably for headerless sheets by preferring columns filled with name-like values (not phone numbers, dates or amounts).
+- Structure Matcher: added a name search box with "Select matching", and a one-click **Reorder & save** action that builds and saves the result in a single step.
+- Structure Matcher: the selection list is now labelled "Select the File B rows to reorder", shows File B row and File A position numbers, and a "Choose File B rows…" button jumps straight to it.
+- Structure Matcher: File B rows that cannot be reordered (no match, duplicate name, or no name) are listed with the reason.
+- Structure Matcher: the projected output row count now follows the current selection.
+
 ## [0.2.0] - 2026-11-09
 
 ### Added
